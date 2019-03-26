@@ -1,0 +1,94 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{
+    ("/*" ~ (!"*/" ~ ANY)* ~ "*/" ) |
+    ("//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE) |
+    ("#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE)
+}
+
+Plus = { "+" }
+Minus = { "-" }
+Star = { "*" }
+Slash = { "/" }
+Modulus = { "%" }
+
+GT = { ">" }
+GE = { ">=" }
+LT = { "<" }
+LE = { "<=" }
+EQ = { "==" }
+NE = { "!=" }
+
+LAnd = { "&&" }
+LOr = { "||" }
+Not = { "!" }
+Neg = { "-" }
+
+Inc = { "++" }
+Dec = { "--" }
+
+Assign = { "=" }
+
+LPar = { "(" }
+RPar = { ")" }
+
+//AddOp = { Plus | Minus }
+//MulOp = { Star | Slash | Modulus }
+//RelOp = { GT | GE | LT | LE | EQ | NE }
+
+Digit = _{ '0'..'9' }
+Alpha = _{ ASCII_ALPHA | "_" }
+
+Boolean = { "true" | "false" }
+Integer = @{ Digit+ }
+Double = @{ Digit+ ~ "." ~ Digit+ ~ (("e" | "E") ~ ("+" | "-")? ~ Digit+)? }
+String = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+Type = { "int" | "double" | "boolean" | "void" }
+FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
+
+Ident = @{ Alpha ~ (Digit | Alpha)* }
+
+Expr6 = {
+    (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
+    Double |
+    Integer |
+    Boolean |
+    Ident |
+    String
+}
+
+Expr5 = { (Not | Neg)? ~ Expr6 }
+Expr4 = { Expr5 ~ ((Star | Slash | Modulus) ~ Expr5)* }
+Expr3 = { Expr4 ~ ((Plus | Minus) ~ Expr4)* }
+Expr2 = { Expr3 ~ ((GT | GE | LT | LE | EQ | NE) ~ Expr3)* }
+Expr1 = { Expr2 ~ (LAnd ~ Expr2)* }
+Expr = { Expr1 ~ (LOr ~ Expr1)* }
+
+Return = { "return" }
+If = { "if" }
+Else = { "else" }
+While = { "while" }
+
+DeclItem = { Ident ~ Assign ~ Expr | Ident}
+
+Stmt = {
+    ( Type ~ (DeclItem ~ ("," ~ DeclItem)*)? ~ ";") |
+    ( Return ~ Expr? ~ ";") |
+    ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
+    ( If ~ "(" ~ Expr ~ ")" ~ Stmt ~ Else ~ Stmt) |
+    ( While ~ "(" ~ Expr ~ ")" ~ Stmt) |
+    Blk |
+    (Ident ~ Assign ~ Expr  ~ ";") |
+    (Ident ~ Inc ~ ";") |
+    (Ident ~ Dec ~ ";") |
+    (Expr ~ ";") |
+    ";"
+}
+
+Blk = { "{" ~ Stmt* ~ "}" }
+
+Arg = { Type ~ Ident }
+
+TopDef = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
+
+Program = { SOI ~ TopDef+ ~ EOI}

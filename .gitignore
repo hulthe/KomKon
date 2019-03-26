@@ -1,0 +1,6 @@
+# IDE:s
+.idea
+
+# Cargo
+/target
+**/*.rs.bk

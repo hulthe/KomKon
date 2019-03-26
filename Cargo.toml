@@ -1,0 +1,12 @@
+[package]
+name = "javalette"
+version = "0.1.0"
+authors = [
+    "Joakim Hulthe <joakim@hulthe.net>",
+    "Magnus Wamby",
+]
+edition = "2018"
+
+[dependencies]
+pest = "*"
+pest_derive = "*"
