@@ -46,7 +46,11 @@ String = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 Type = { "int" | "double" | "boolean" | "void" }
 FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
-Ident = @{ Alpha ~ (Digit | Alpha)* }
+NonIdent = _{Type | Boolean | Return | If | Else | While}
+Ident = @{
+    (NonIdent ~ (Digit | Alpha)+) |
+    (!NonIdent ~ Alpha ~ (Digit | Alpha)*)
+}
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
