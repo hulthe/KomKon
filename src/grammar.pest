@@ -54,6 +54,7 @@ Ident = @{
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
+    (LPar ~ Expr ~ RPar) |
     Double |
     Integer |
     Boolean |
@@ -64,7 +65,7 @@ Expr6 = {
 Expr5 = { (Not | Neg)? ~ Expr6 }
 Expr4 = { Expr5 ~ ((Star | Slash | Modulus) ~ Expr5)* }
 Expr3 = { Expr4 ~ ((Plus | Minus) ~ Expr4)* }
-Expr2 = { Expr3 ~ ((GT | GE | LT | LE | EQ | NE) ~ Expr3)* }
+Expr2 = { Expr3 ~ ((GE | GT | LE | LT | EQ | NE) ~ Expr3)* }
 Expr1 = { Expr2 ~ (LAnd ~ Expr2)* }
 Expr = { Expr1 ~ (LOr ~ Expr1)* }
 
@@ -78,8 +79,8 @@ DeclItem = { Ident ~ Assign ~ Expr | Ident}
 Stmt = {
     ( Type ~ (DeclItem ~ ("," ~ DeclItem)*)? ~ ";") |
     ( Return ~ Expr? ~ ";") |
-    ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
     ( If ~ "(" ~ Expr ~ ")" ~ Stmt ~ Else ~ Stmt) |
+    ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
     ( While ~ "(" ~ Expr ~ ")" ~ Stmt) |
     Blk |
     (Ident ~ Assign ~ Expr  ~ ";") |

@@ -5,6 +5,36 @@ use pest::iterators::Pair;
 #[grammar = "grammar.pest"]
 pub struct JavaletteParser;
 
+type PestError = pest::error::Error<Rule>;
+
+#[derive(Debug)]
+pub enum ASTError {
+    /// Pest could not parse the input string
+    Pest(PestError),
+
+    /// The pest-generated token tree could not be parsed as a typed AST.
+    /// This is a programmer error.
+    GrammarError(String),
+}
+
+impl From<PestError> for ASTError {
+    fn from(e: PestError) -> ASTError {
+        ASTError::Pest(e)
+    }
+}
+
+impl From<String> for ASTError {
+    fn from(s: String) -> ASTError {
+        ASTError::GrammarError(s)
+    }
+}
+
+impl From<&str> for ASTError {
+    fn from(s: &str) -> ASTError {
+        ASTError::GrammarError(s.to_owned())
+    }
+}
+
 #[derive(Debug)]
 pub struct Program(Vec<TopDef>);
 
@@ -43,6 +73,7 @@ pub enum Stmt {
     Decrement(String),
     Expression(Expr),
     Declare(Type, Vec<DeclItem>),
+    Empty,
 }
 
 #[derive(Debug)]
@@ -77,7 +108,7 @@ pub enum Expr {
 }
 
 impl Stmt {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
@@ -113,18 +144,20 @@ impl Stmt {
             [(Rule::Type, typp), items..] => {
                 let items = items.into_iter()
                     .map(|(_, pair)| DeclItem::from_pair(pair.clone()))
-                    .collect::<Result<Vec<_>, ()>>()?;
+                    .collect::<Result<Vec<_>, ASTError>>()?;
                 Stmt::Declare(Type::from_pair(typp.clone())?, items)
             }
 
-            _ => unreachable!("oh noes")
+            [] => Stmt::Empty,
+
+            _ => Err("No matching rule for Stmt")?,
         };
         Ok(stmt)
     }
 }
 
 impl Expr {
-    fn from_pair_rec(rules: &[(Rule, Pair<'_, Rule>)]) -> Result<Self, ()> {
+    fn from_pair_rec(rules: &[(Rule, Pair<'_, Rule>)]) -> Result<Self, ASTError> {
         Ok(match &rules[..] {
             [(Rule::Expr1, expp), (Rule::LOr, _), tail..]
                 => Expr::LOr(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
@@ -177,20 +210,23 @@ impl Expr {
 
             [(Rule::String, strp)] => Expr::Str(strp.as_str().to_owned()),
 
+            [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
+                => Expr::from_pair(expp.clone())?,
+
             [(Rule::Ident, idnp), (Rule::LPar, _), exprs.., (Rule::RPar, _)] => {
                 let exprs = exprs.into_iter()
                     .map(|(_, pair)| Expr::from_pair(pair.clone()))
-                    .collect::<Result<Vec<_>, ()>>()?;
+                    .collect::<Result<Vec<_>, ASTError>>()?;
                 Expr::FunctionCall(idnp.as_str().to_owned(), exprs)
             }
 
             [(Rule::Ident, boop)] => Expr::Ident(boop.as_str().to_owned()),
 
-            p => panic!("Oh no: {:#?}\n Something went wrong here^", p),
+            _ => Err("No matching rule for Expr")?,
         })
     }
 
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
@@ -199,7 +235,7 @@ impl Expr {
 }
 
 impl DeclItem {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
@@ -209,45 +245,45 @@ impl DeclItem {
 
             [(Rule::Ident, idenp)] => DeclItem::NoInit(idenp.as_str().to_owned()),
 
-            _ => panic!("oh noooes")
+            _ => Err("No matching rule for Stmt")?,
         })
     }
 }
 
 impl Type {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         match pair.as_str() {
             "int" => Ok(Type::Integer),
             "double" => Ok(Type::Double),
             "boolean" => Ok(Type::Boolean),
             "void" => Ok(Type::Void),
-            _ => Err(()),
+            t => Err(format!("\"{}\" is not a valid Type", t))?,
         }
     }
 }
 
 impl Program {
-    pub fn parse(raw: &str) -> Result<Self, ()> {
-        let mut parse = JavaletteParser::parse(Rule::Program, raw).unwrap();
+    pub fn parse(raw: &str) -> Result<Self, ASTError> {
+        let mut parse = JavaletteParser::parse(Rule::Program, raw)?;
         println!("{:#?}", parse);
         let program = parse.next().unwrap();
         let top_defs = program.into_inner()
             .filter(|pair| pair.as_rule() == Rule::TopDef)
             .map(TopDef::from_pair)
-            .collect::<Result<Vec<TopDef>,()>>()?;
+            .collect::<Result<Vec<TopDef>, ASTError>>()?;
         Ok(Program(top_defs))
     }
 }
 
 impl Arg {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let mut type_ = None;
         let mut ident = None;
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::Type => type_ = Some(Type::from_pair(pair)?),
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
-                _ => unreachable!("Non-valid Rule in TopDef")
+                _ => Err("No matching rule for Arg")?,
             }
         }
         Ok(Arg(type_.unwrap(), ident.unwrap()))
@@ -255,17 +291,17 @@ impl Arg {
 }
 
 impl Blk {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let statements = pair.into_inner()
             .filter(|pair| pair.as_rule() == Rule::Stmt)
             .map(Stmt::from_pair)
-            .collect::<Result<Vec<Stmt>,()>>()?;
+            .collect::<Result<Vec<Stmt>, ASTError>>()?;
         Ok(Blk(statements))
     }
 }
 
 impl TopDef {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ()> {
+    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
         let mut type_ = None;
         let mut ident = None;
         let mut args = vec![];
@@ -276,38 +312,15 @@ impl TopDef {
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 Rule::Arg => args.push(Arg::from_pair(pair)?),
                 Rule::Blk => block = Some(Blk::from_pair(pair)?),
-                _ => unreachable!("Non-valid Rule in TopDef")
+                _ => Err("No matching rule for TopDef")?,
             }
         }
         Ok(TopDef{
-            return_type: type_.ok_or(())?,
-            ident: ident.ok_or(())?,
+            return_type: type_.ok_or("No Type set for TopDef")?,
+            ident: ident.ok_or("No Ident set for TopDef")?,
             args,
-            body: block.ok_or(())?,
+            body: block.ok_or("No Body set for TopDef")?,
         })
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_parse() {
-        let p = Program::parse(r#"int main() {
-                1+1 % 5 || 5==2;
-                main(1, 2.4e-3);
-                return hello;
-            }
-
-            void hello(int x, int y) {
-                return x - y + 1;
-                {
-                    int a = 23, c, b;
-                }
-            }
-            "#).expect("Failed");
-        eprintln!("{:#?}", p);
-        assert!(false);
-    }
-}
