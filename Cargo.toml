@@ -1,12 +1,17 @@
 [package]
-name = "javalette"
+name = "jlc"
 version = "0.1.0"
+description = """ 
+jlc is a compiler for Javalette: A fictional programming language
+created for the Compiler Construction (TDA283) Chalmers course.
+"""
 authors = [
-    "Joakim Hulthe <joakim@hulthe.net>",
-    "Magnus Wamby",
+    "Joakim Hulthe <hulthe@student.chalmers.se>",
+    "Magnus Wamby <wamby@student.chalmers.se>",
 ]
 edition = "2018"
 
 [dependencies]
 pest = "*"
 pest_derive = "*"
+clap = "2.32.0"

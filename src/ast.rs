@@ -272,7 +272,6 @@ impl Type {
 impl Program {
     pub fn parse(raw: &str) -> Result<Self, ASTError> {
         let mut parse = JavaletteParser::parse(Rule::Program, raw)?;
-        println!("{:#?}", parse);
         let program = parse.next().unwrap();
         let top_defs = program.into_inner()
             .filter(|pair| pair.as_rule() == Rule::TopDef)
