@@ -10,6 +10,26 @@ enum Error {
     TypeError
 }
 
+pub fn type_check(prog: &Program) -> Result<bool, ()> {
+    let mut stack = vec![]; // :Vec<StackElem>
+
+    // first pass, push function identities
+    for td in &prog.0 {
+        stack.push(StackElem::Function(
+            td.return_type,
+            td.ident.clone(),
+            td.args.clone(),
+        ));
+    }
+
+    // recursively check each function
+    for td in &prog.0 {
+        td.check(&mut stack, Type::Void)?;
+    }
+
+    Ok(true)
+}
+
 fn pop_scope(stack: &mut Vec<StackElem>) {
     while let Some(elem) = stack.pop() {
         if let StackElem::Scope(_) = elem {
@@ -20,30 +40,16 @@ fn pop_scope(stack: &mut Vec<StackElem>) {
 }
 
 trait TypeCheckable {
-    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<(Type), ()>;
+    /// Checks the type of the element and its children
+    ///
+    /// # Arguments
+    ///
+    /// * `stack` -     A stack on which identifiers are pushed and checked against
+    ///
+    /// * `func_type` - The return type of the function being traversed
+    ///
+    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, ()>;
 }
-
-//impl TypeCheckable for Program {
-//    fn check(&self, stack: &mut Vec<StackElem>) -> Result<(), ()> {
-//        // push global scope
-//        stack.push(StackElem::Scope("Global"));
-//        // first pass, find functiond defs
-//        for td in self {
-//            stack.push(StackElem::Function(
-//                td.return_type,
-//                td.ident.clone(),
-//                td.args.clone(),
-//            ));
-//        }
-//        // second pass, evaluate functions/blocks
-//        for td in self {}
-//        {
-//            td.check(stack)?;
-//        }
-//        pop_scope(stack);
-//        Ok(())
-//    }
-//}
 
 impl TypeCheckable for TopDef {
     fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, ()> {
@@ -219,8 +225,20 @@ impl TypeCheckable for Expr {
 
             // Function call (type of function, check that expression types match)
             Expr::FunctionCall(ident, args)
-            =>
-                unimplemented!(),
+            => match search_stack(stack, ident) {
+                Ok(StackElem::Function(t, _, params)) => {
+                    let t = *t;
+                    let it: Vec<_> = args.iter()
+                        .zip(params.iter().map(|Arg(param_t, _)| *param_t)).collect();
+                    for (arg, param_t) in it {
+                        if param_t != arg.check(stack, func_type)? {
+                            return Err(());
+                        }
+                    }
+                    Ok(t)
+                }
+                _ => Err(())
+            }
         }
     }
 }
@@ -259,6 +277,17 @@ fn is_eq(t: &Type) -> bool {
     }
 }
 
+/// Searches a stack top to bottom (higher indexes first) for an non-Scope element matching identity
+///
+/// # Arguments
+///
+/// * `stack` -
+///
+/// * `ident` -
 fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackElem, ()> {
-    unimplemented!()
+    stack.iter().rev().find(|it| match it {
+        StackElem::Scope(_) => false,
+        StackElem::Function(_, id, _) | StackElem::Variable(_, id)
+        => id == ident,
+    }).ok_or(())
 }

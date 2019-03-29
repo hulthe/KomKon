@@ -1,5 +1,7 @@
 use crate::ast::*;
 
+use crate::typecheck::*;
+
 macro_rules! test_good {
     ($file:ident) => {
         #[test]
@@ -7,8 +9,9 @@ macro_rules! test_good {
             let source = include_str!(concat!("examples/good/", stringify!($file), ".jl"));
             println!("Trying to compile:\n{}", source);
             let p = Program::parse(source);
-            if let Ok(_) = p {
+            if let Ok(p) = p {
                 // All good!
+                type_check(&p).expect("type_check failed");
             } else {
                 println!("{:#?}", p);
                 assert!(false, concat!(stringify!($file), ".jl failed to compile!"));

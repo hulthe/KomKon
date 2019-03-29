@@ -36,7 +36,7 @@ impl From<&str> for ASTError {
 }
 
 #[derive(Debug)]
-pub struct Program(Vec<TopDef>);
+pub struct Program(pub Vec<TopDef>);
 
 #[derive(Debug)]
 pub struct TopDef {
@@ -55,7 +55,7 @@ pub enum Type {
     String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Arg(pub Type, pub String);
 
 #[derive(Debug)]
