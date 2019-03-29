@@ -13,7 +13,7 @@ pub enum ASTError {
     Pest(PestError),
 
     /// The pest-generated token tree could not be parsed as a typed AST.
-    /// This is a programmer error.
+    /// This is an error in the compiler
     GrammarError(String),
 }
 
@@ -40,25 +40,26 @@ pub struct Program(Vec<TopDef>);
 
 #[derive(Debug)]
 pub struct TopDef {
-    return_type: Type,
-    ident: String,
-    args: Vec<Arg>,
-    body: Blk,
+    pub return_type: Type,
+    pub ident: String,
+    pub args: Vec<Arg>,
+    pub body: Blk,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
     Integer,
     Double,
     Boolean,
     Void,
+    String,
 }
 
 #[derive(Debug)]
-pub struct Arg(Type, String);
+pub struct Arg(pub Type, pub String);
 
 #[derive(Debug)]
-pub struct Blk(Vec<Stmt>);
+pub struct Blk(pub Vec<Stmt>);
 
 #[derive(Debug)]
 pub enum Stmt {
@@ -80,6 +81,12 @@ pub enum Stmt {
 pub enum DeclItem {
     NoInit(String),
     Init(String, Expr),
+}
+
+impl DeclItem {
+    pub fn get_ident(&self) -> &str { match self {
+        DeclItem::NoInit(ident) | DeclItem::Init(ident, _) => &ident
+    }}
 }
 
 #[derive(Debug)]

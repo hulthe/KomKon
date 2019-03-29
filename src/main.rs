@@ -8,6 +8,7 @@ extern crate pest_derive;
 mod tests;
 
 pub mod ast;
+pub mod typecheck;
 
 fn main() {
     unimplemented!("main() is not yet implemented!");

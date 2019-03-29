@@ -46,31 +46,31 @@ trait TypeCheckable {
 //}
 
 impl TypeCheckable for TopDef {
-    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<(Type), ()> {
+    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, ()> {
         stack.push(StackElem::Scope("Function"));
-        for (type_, ident) in self.args {
-            stack.push(StackElem::Variable(type_, ident));
+        for Arg(type_, ident) in &self.args {
+            stack.push(StackElem::Variable(*type_, ident.clone()));
         }
-        self.body.check(stack);
+        self.body.check(stack, self.return_type)?;
         pop_scope(stack);
-        Ok((func_type))
+        Ok(func_type)
     }
 }
 
 impl TypeCheckable for Blk
 {
-    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<(Type), ()> {
+    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, ()> {
         stack.push(StackElem::Scope("Block"));
-        for st in self {
-            st.check(stack, func_type);
+        for st in &self.0 {
+            st.check(stack, func_type)?;
         }
         pop_scope(stack);
-        Ok((Type::Void))
+        Ok(Type::Void)
     }
 }
 
 impl TypeCheckable for Stmt {
-    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<(Type), ()> {
+    fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, ()> {
         match self {
             Stmt::Return(expr)
             => if expr.check(stack, func_type)? == func_type { Ok(Type::Void) } else { Err(()) },
@@ -92,17 +92,20 @@ impl TypeCheckable for Stmt {
             } else { Err(()) },
 
             Stmt::Assignment(ident, stmt)
-            => match search_stack(stack, ident)? {
-                StackElem::Variable(type_, _)
-                if type_ == stmt.check(stack, func_type)? => Ok((Type::Void)),
-
-                _ => Err(())
+            => if let StackElem::Variable(type_, _) = search_stack(stack, ident)? {
+                if type_.clone() == stmt.check(stack, func_type)? {
+                    Ok(Type::Void)
+                } else {
+                    Err(())
+                }
+            } else {
+                Err(())
             }
 
             Stmt::Increment(ident) | Stmt::Decrement(ident)
             => match search_stack(stack, ident)? {
-                StackElem::Variable(type_, ident)
-                if type_ == Type::Integer => Ok((Type::Void)),
+                StackElem::Variable(type_, _ident)
+                if *type_ == Type::Integer => Ok(Type::Void),
 
                 _ => Err(())
             }
@@ -111,16 +114,17 @@ impl TypeCheckable for Stmt {
             => {
                 for item in decl_items {
                     if let DeclItem::Init(_, expr) = item {
-                        if expr.check(stack, func_type)? != type_ { Ok(()) }
+                        if expr.check(stack, func_type)? != *type_ { return Err(()); }
                     }
                 }
                 for item in decl_items {
-                    stack.push(StackElem::Variable(*type_, item.0))
+                    stack.push(StackElem::Variable(*type_, item.get_ident().into()))
                 }
                 Ok(Type::Void)
             }
 
-            Stmt::Block(child) | Stmt::Expression(child) => child.check(stack, func_type),
+            Stmt::Block(child) => child.check(stack, func_type),
+            Stmt::Expression(child) => child.check(stack, func_type),
 
             _ => unreachable!("oh noes")
         }
@@ -164,8 +168,8 @@ impl TypeCheckable for Expr {
             => {
                 let lhs_type = lhs.check(stack, func_type)?;
                 let rhs_type = rhs.check(stack, func_type)?;
-                if rhs_type == lhs_type & &
-                    is_eq(&rhs_type) & &
+                if rhs_type == lhs_type &&
+                    is_eq(&rhs_type) &&
                     is_eq(&lhs_type) { Ok(Type::Boolean) } else { Err(()) }
             }
             // Number A => A -> A -> A
@@ -183,7 +187,7 @@ impl TypeCheckable for Expr {
             }
 
             // Number A => A -> A
-            Expr::Sub(box op)
+            Expr::Neg(box op)
             => {
                 let op_type = op.check(stack, func_type)?;
                 if is_number(&op_type) { Ok(op_type) } else { Err(()) }
@@ -208,8 +212,8 @@ impl TypeCheckable for Expr {
             => Ok(Type::String),
             Expr::Ident(ident)
             => match search_stack(stack, ident)? {
-                StackElem::Variable(t, _) => t,
-                StackElem::Function(t, ..) => t,
+                StackElem::Variable(t, _) => Ok(*t),
+                StackElem::Function(t, ..) => Ok(*t),
                 _ => Err(())
             }
 
@@ -217,13 +221,21 @@ impl TypeCheckable for Expr {
             Expr::FunctionCall(ident, args)
             =>
                 unimplemented!(),
-            _ => unreachable!("oops")
         }
     }
 }
 
 
 fn is_number(t: &Type) -> bool {
+    match t {
+        Type::Integer |
+        Type::Double => true,
+        _ => false
+    }
+}
+
+// TODO: make sure the rights types are ord/part_ord
+fn is_ord(t: &Type) -> bool {
     match t {
         Type::Integer |
         Type::Double => true,
@@ -247,6 +259,6 @@ fn is_eq(t: &Type) -> bool {
     }
 }
 
-fn search_stack(stack: &Vec<StackElem>, ident: &str) -> Result<&StackElem, ()> {
+fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackElem, ()> {
     unimplemented!()
 }
