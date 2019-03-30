@@ -1,33 +1,57 @@
 use crate::ast::{Type, Program, TopDef, Blk, Stmt, Arg, DeclItem, Expr};
 
-enum StackElem {
-    Scope(&'static str),
+#[derive(Debug)]
+enum StackType {
     Variable(Type, String),
     Function(Type, String, Vec<Arg>),
 }
 
+impl StackType {
+    pub fn get_ident(&self) -> &str {
+        match self {
+            StackType::Variable(_, ident) | StackType::Function(_, ident, _) => ident,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum StackElem {
+    Scope(&'static str),
+    Type(StackType),
+}
+
 // TODO add descriptions?
-enum Error {
+#[derive(Debug)]
+pub enum Error {
     Type { expected: Type, got: Type },
     MismatchedType { lhs: Type, rhs: Type },
     InvalidReturnType { expected: Type, got: Type },
     Undeclared {},
+    AlreadyDeclared{},
     NotPartialOrdered { got: Type },
     NotOrdered { got: Type },
     NotEq { got: Type },
     NotNumber { got: Type },
+    NotAFunction,
+    InvalidArgumentCount { expected: usize, got: usize },
 }
 
 pub fn type_check(prog: &Program) -> Result<bool, Error> {
-    let mut stack = vec![]; // :Vec<StackElem>
+    use self::{StackType::*};
+    let mut stack: Vec<StackElem> = vec![];
 
+    stack.push(StackElem::Type(Function(Type::Void, "printInt".into(), vec![Arg(Type::Integer, "n".into())])));
+    stack.push(StackElem::Type(Function(Type::Void, "printDouble".into(), vec![Arg(Type::Double, "x".into())])));
+    stack.push(StackElem::Type(Function(Type::Void, "printString".into(), vec![Arg(Type::String, "s".into())])));
+    stack.push(StackElem::Type(Function(Type::Integer, "readInt".into(), vec![])));
+    stack.push(StackElem::Type(Function(Type::Double, "readDouble".into(), vec![])));
 // first pass, push function identities
     for td in &prog.0 {
-        stack.push(StackElem::Function(
+        stack.push(StackElem::Type(Function(
             td.return_type,
             td.ident.clone(),
             td.args.clone(),
-        ));
+        )));
     }
 
 // recursively check each function
@@ -63,7 +87,7 @@ impl TypeCheckable for TopDef {
     fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {
-            stack.push(StackElem::Variable(*type_, ident.clone()));
+            push_stack_def(stack, StackType::Variable(*type_, ident.clone()))?;
         }
         self.body.check(stack, self.return_type)?;
         pop_scope(stack);
@@ -71,8 +95,7 @@ impl TypeCheckable for TopDef {
     }
 }
 
-impl TypeCheckable for Blk
-{
+impl TypeCheckable for Blk {
     fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error> {
         stack.push(StackElem::Scope("Block"));
         for st in &self.0 {
@@ -87,10 +110,10 @@ impl TypeCheckable for Stmt {
     fn check(&self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error> {
         match self {
             Stmt::Return(expr)
-            => assert_type(func_type, expr.check(stack, func_type)?)?,
+            => {assert_type(func_type, expr.check(stack, func_type)?)?;}
 
             Stmt::ReturnVoid
-            => if func_type == Type::Void { Ok(Type::Void) } else {
+            => if func_type == Type::Void {} else {
                 return Err(Error::InvalidReturnType { expected: func_type, got: Type::Void });
             },
 
@@ -108,35 +131,35 @@ impl TypeCheckable for Stmt {
             }
 
             Stmt::Assignment(ident, stmt)
-            => if let StackElem::Variable(type_, _) = search_stack(stack, ident)? {
+            => if let Ok(StackType::Variable(type_, _)) = search_stack(stack, ident) {
                 assert_type(*type_, stmt.check(stack, func_type)?)?;
             } else {
                 return Err(Error::Undeclared {});
             }
 
             Stmt::Increment(ident) | Stmt::Decrement(ident)
-            => match search_stack(stack, ident)? {
-                StackElem::Variable(type_, _ident)
-                => assert_type(Type::Integer, *type_)?,
+            => match search_stack(stack, ident) {
+                Ok(StackType::Variable(type_, _ident))
+                => {assert_type(Type::Integer, *type_)?;}
 
                 _ => return Err(Error::Undeclared {})
             }
 
-            Stmt::Declare(&decl_type, decl_items)
+            Stmt::Declare(decl_type, decl_items)
             => {
                 for item in decl_items {
                     if let DeclItem::Init(_, expr) = item {
-                        assert_type(decl_type, expr.check(stack, func_type)?)?
+                        assert_type(*decl_type, expr.check(stack, func_type)?)?;
                     }
                 }
                 for item in decl_items {
-                    stack.push(StackElem::Variable(*decl_type, item.get_ident().into()))
+                    push_stack_def(stack, StackType::Variable(*decl_type, item.get_ident().into()))?;
                 }
             }
 
-            Stmt::Block(child) => child.check(stack, func_type)?,
-            Stmt::Expression(child) => child.check(stack, func_type)?,
-            _ => unreachable!("oh noes")
+            Stmt::Block(child) => {child.check(stack, func_type)?;}
+            Stmt::Expression(child) => {child.check(stack, func_type)?;}
+            Stmt::Empty => {}
         }
         Ok(Type::Void)
     }
@@ -202,7 +225,6 @@ impl TypeCheckable for Expr {
 // Number A => A -> A -> A
             Expr::Mul(box lhs, box rhs) |
             Expr::Div(box lhs, box rhs) |
-            Expr::Mod(box lhs, box rhs) |
             Expr::Add(box lhs, box rhs) |
             Expr::Sub(box lhs, box rhs)
             => {
@@ -215,6 +237,13 @@ impl TypeCheckable for Expr {
                 } else {
                     Ok(lhs)
                 }
+            }
+
+// Integer A => A -> A -> A
+            Expr::Mod(box lhs, box rhs) => {
+                assert_type(Type::Integer, lhs.check(stack, func_type)?)?;
+                assert_type(Type::Integer, rhs.check(stack, func_type)?)?;
+                Ok(Type::Integer)
             }
 
 // Number A => A -> A
@@ -240,27 +269,35 @@ impl TypeCheckable for Expr {
             Expr::Str(_)
             => Ok(Type::String),
             Expr::Ident(ident)
-            => match search_stack(stack, ident)? {
-                StackElem::Variable(t, _) => Ok(*t),
-                StackElem::Function(t, ..) => Ok(*t),
+            => match search_stack(stack, ident) {
+                Ok(StackType::Variable(t, _)) => Ok(*t),
+                Ok(StackType::Function(t, ..)) => Ok(*t),
                 _ => Err(Error::Undeclared {})
             }
 
 // Function call (type of function, check that expression types match)
             Expr::FunctionCall(ident, args)
             => match search_stack(stack, ident) {
-                Ok(StackElem::Function(t, _, params)) => {
+                Ok(StackType::Function(t, _, params)) => {
                     let t = *t;
+                    if params.len() != args.len() {
+                        return Err(Error::InvalidArgumentCount {
+                            expected: params.len(),
+                            got: args.len(),
+                        });
+                    }
                     let it: Vec<_> = args.iter()
                         .zip(params.iter().map(|Arg(param_t, _)| *param_t)).collect();
                     for (arg, param_t) in it {
-                        if param_t != arg.check(stack, func_type)? {
-                            return Err(());
+                        let arg_t = arg.check(stack, func_type)?;
+                        if param_t != arg_t {
+                            return Err(Error::Type{ expected: param_t, got: arg_t });
                         }
                     }
                     Ok(t)
                 }
-                _ => Err(())
+                Ok(_) => Err(Error::NotAFunction),
+                Err(_) => Err(Error::Undeclared {}),
             }
         }
     }
@@ -295,8 +332,18 @@ fn is_part_ord(t: &Type) -> bool {
 fn is_eq(t: &Type) -> bool {
     match t {
         Type::Integer |
+        Type::Double |
         Type::Boolean => true,
         _ => false
+    }
+}
+
+fn push_stack_def(stack: &mut Vec<StackElem>, elem: StackType) -> Result<(), Error> {
+    if let None = search_stack_scope(stack, elem.get_ident()) {
+        stack.push(StackElem::Type(elem));
+        Ok(())
+    } else {
+        Err(Error::AlreadyDeclared {})
     }
 }
 
@@ -307,16 +354,37 @@ fn is_eq(t: &Type) -> bool {
 /// * `stack` -
 ///
 /// * `ident` -
-fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackElem, ()> {
-    stack.iter().rev().find(|it| match it {
-        StackElem::Scope(_) => false,
-        StackElem::Function(_, id, _) | StackElem::Variable(_, id)
-        => id == ident,
-    }).ok_or(())
+fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackType, ()> {
+    stack.iter().rev()
+        .filter_map(|it| match it {
+            StackElem::Scope(_) => None,
+            StackElem::Type(t) => Some(t),
+        })
+        .find(|it| match it {
+            StackType::Function(_, id, _) | StackType::Variable(_, id) => id == ident,
+        }).ok_or(())
+}
+
+fn search_stack_scope<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Option<&'a StackType> {
+    stack.iter().rev()
+        .take_while(|it| match it {
+            StackElem::Scope(_) => false,
+            _ => true,
+        })
+        .filter_map(|it| match it {
+            StackElem::Scope(_) => None,
+            StackElem::Type(t) => Some(t),
+        })
+        .find(|it| match it {
+            StackType::Function(_, id, _) | StackType::Variable(_, id) => id == ident,
+        })
 }
 
 
 fn assert_type(expected: Type, got: Type) -> Result<Type, Error> {
-    if expected == got { Ok(got) }
-    Err(Error::Type { expected, got })
+    if expected == got {
+        Ok(got)
+    } else {
+        Err(Error::Type { expected, got })
+    }
 }

@@ -1,4 +1,5 @@
 use crate::ast::*;
+use crate::typecheck::type_check;
 
 macro_rules! test_bad {
     ($file:ident) => {
@@ -7,10 +8,17 @@ macro_rules! test_bad {
             let source = include_str!(concat!("examples/bad/", stringify!($file), ".jl"));
             println!("Trying to compile invalid program:\n{}", source);
             let p = Program::parse(source);
-            if let Err(e) = p {
+            match p {
+                Err(e) => {
                 println!("Success! Program rejected by grammar with the following error: {:?}", e);
-            } else {
-                assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));
+                }
+                Ok(p) => {
+                    if let Err(e) = type_check(&p) {
+                        println!("Success! Program rejected by type checker with the following error: {:?}", e);
+                    } else {
+                        assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));
+                    }
+                }
             }
         }
     }
