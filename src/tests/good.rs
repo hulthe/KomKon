@@ -1,6 +1,7 @@
 use crate::ast::*;
 
 use crate::typecheck::*;
+use crate::returncheck::return_check;
 
 macro_rules! test_good {
     ($file:ident) => {
@@ -12,6 +13,7 @@ macro_rules! test_good {
             if let Ok(p) = p {
                 // All good!
                 type_check(&p).expect("type_check failed");
+                return_check(&p).expect("return_check failed");
             } else {
                 println!("{:#?}", p);
                 assert!(false, concat!(stringify!($file), ".jl failed to compile!"));

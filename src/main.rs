@@ -10,10 +10,13 @@ mod tests;
 
 pub mod ast;
 pub mod typecheck;
+pub mod returncheck;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read};
 use crate::ast::Program;
+use crate::typecheck::type_check;
+use crate::returncheck::return_check;
 
 fn main() -> io::Result<()> {
     let _matches = clap_app!(jlc =>
@@ -21,15 +24,19 @@ fn main() -> io::Result<()> {
         (author: crate_authors!("\n"))
         (about: crate_description!())
     ).get_matches();
-
     let mut buffer = String::new();
     let stdin = io::stdin();
     let mut handle = stdin.lock();
 
     handle.read_to_string(&mut buffer)?;
 
-    if let Ok(_) = Program::parse(&buffer) {
+    if let Ok(prog) = Program::parse(&buffer) {
         eprintln!("OK");
+        match return_check(&prog) {
+            Ok(true) => eprintln!("Return OK"),
+            Ok(false) => panic!(),
+            Err(e) => eprintln!("{:?}", e),
+        }
         Ok(())
     } else {
         eprintln!("ERROR");
