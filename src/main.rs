@@ -16,7 +16,7 @@ pub mod minimize;
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write};
 use crate::ast::Program;
-use crate::returncheck::return_check;
+use crate::returncheck::{return_check, Error as ReturnError};
 use crate::typecheck::{type_check, Error};
 use crate::minimize::Minimize;
 use colored::*;
@@ -106,10 +106,23 @@ fn main() -> io::Result<()> {
     handle.read_to_string(&mut buffer)?;
 
     match Program::parse(&buffer) {
-        Ok(r) => match type_check(&r) {
+        Ok(mut r) => match type_check(&r) {
             Ok(_) => {
-                eprintln!("OK");
-                Ok(())
+                r.minimize();
+                match return_check(&r) {
+                    Ok(_) => {
+                        eprintln!("OK");
+                        Ok(())
+                    }
+                    Err(ReturnError::NonReturningFunction) => {
+                        eprintln!("ERROR\nFunction does not always return.");
+                        Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+                    }
+                    Err(ReturnError::UnreachableStatement) => {
+                        eprintln!("ERROR\nUnreachable statement.");
+                        Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+                    }
+                }
             }
             Err(e) => {
                 print_compiler_error(&buffer, e)?;
