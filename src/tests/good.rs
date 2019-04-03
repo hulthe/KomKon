@@ -2,6 +2,7 @@ use crate::ast::*;
 
 use crate::typecheck::*;
 use crate::returncheck::return_check;
+use crate::minimize::Minimize;
 
 macro_rules! test_good {
     ($file:ident) => {
@@ -10,9 +11,10 @@ macro_rules! test_good {
             let source = include_str!(concat!("examples/good/", stringify!($file), ".jl"));
             println!("Trying to compile:\n{}", source);
             let p = Program::parse(source);
-            if let Ok(p) = p {
+            if let Ok(mut p) = p {
                 // All good!
                 type_check(&p).expect("type_check failed");
+                p.minimize();
                 return_check(&p).expect("return_check failed");
             } else {
                 println!("{:#?}", p);
@@ -53,3 +55,4 @@ test_good!(core028);
 test_good!(core029);
 test_good!(core030);
 test_good!(core031);
+test_good!(coreC001);
