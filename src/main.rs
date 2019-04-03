@@ -13,10 +13,83 @@ pub mod typecheck;
 pub mod returncheck;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use crate::ast::Program;
-use crate::typecheck::type_check;
 use crate::returncheck::return_check;
+use crate::typecheck::{type_check, Error};
+use colored::*;
+
+fn get_internal_slice_pos(raw: &str, slice: &str) -> Option<(usize, usize)> {
+    let other_s = raw.as_ptr() as usize;
+    let other_e = other_s + raw.len();
+    let our_s = slice.as_ptr() as usize;
+    let our_e = our_s + slice.len();
+
+    if other_s <= our_s && other_e >= our_e {
+        Some((our_s - other_s, slice.len()))
+    } else {
+        None
+    }
+}
+
+fn print_compiler_error(source: &str, error: Error) -> io::Result<()> {
+    let stderr = io::stderr();
+    let mut handle = stderr.lock();
+
+    write!(handle, "{}\n", "ERROR".red())?;
+    match error {
+        Error::Context(slice, kind) => {
+            if let Some((start_byte, len)) = get_internal_slice_pos(source, slice) {
+                let mut start = 0;
+                let mut end = source.len();
+                let mut byte = 0;
+                let mut iter = source.chars();
+                while let Some(c) = iter.next() {
+                    byte += c.len_utf8();
+                    if c == '\n' {
+                        start = byte;
+                    }
+                    if byte >= start_byte {
+                        //println!("Found start @ {}", start);
+                        break;
+                    }
+                }
+
+                for c in iter {
+                    if byte >= start_byte + len && c == '\n' {
+                        end = byte;
+                        //println!("Found end @ {}", end);
+                        break;
+                    }
+                    byte += c.len_utf8();
+                }
+
+                let mut line_count = 1;
+                for c in source[0..start_byte].chars() {
+                    if c == '\n' {
+                        line_count += 1;
+                    }
+                }
+
+                let error_slice = &source[start..end];
+
+                write!(handle, "     {} {}\n", "*".red(), format!("{}", kind).bright_red())?;
+                write!(handle,"     {}\n", "|".blue())?;
+                for line in error_slice.lines() {
+                    write!(handle, "{} {} {}\n", format!("{:4}", line_count).blue(), "|".blue(), line)?;
+                    line_count += 1;
+                }
+                write!(handle,"     {}\n", "|".blue())?;
+            } else {
+                write!(handle, "Error at \"{}\":\n  {}\n", slice, kind)?;
+            }
+        }
+        Error::NoContext(kind) => {
+            write!(handle, "{}", kind)?;
+        }
+    }
+    Ok(())
+}
 
 fn main() -> io::Result<()> {
     let _matches = clap_app!(jlc =>
@@ -30,18 +103,24 @@ fn main() -> io::Result<()> {
 
     handle.read_to_string(&mut buffer)?;
 
-    if let Ok(prog) = Program::parse(&buffer) {
-        eprintln!("OK");
-        match return_check(&prog) {
-            Ok(true) => eprintln!("Return OK"),
-            Ok(false) => panic!(),
-            Err(e) => eprintln!("{:?}", e),
+    match Program::parse(&buffer) {
+        Ok(r) => match type_check(&r) {
+            Ok(_) => {
+                eprintln!("OK");
+                Ok(())
+            }
+            Err(e) => {
+                print_compiler_error(&buffer, e)?;
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+            }
         }
-        Ok(())
-    } else {
-        eprintln!("ERROR");
+        Err(e) => {
+            eprintln!("ERROR");
+            eprintln!("Failed to parse source code.");
+            eprintln!("{:?}", e);
 
-        // TODO: Custom error type
-        Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+            // TODO: Custom error type
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+        }
     }
 }

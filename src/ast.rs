@@ -1,5 +1,6 @@
 use pest::Parser;
 use pest::iterators::Pair;
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -35,15 +36,55 @@ impl From<&str> for ASTError {
     }
 }
 
-#[derive(Debug)]
-pub struct Program(pub Vec<TopDef>);
+#[derive(Debug, Clone)]
+pub struct Node<'a, T> {
+    pub elem: Box<T>,
+    slice: &'a str,
+}
+
+impl<'a, T> Node<'a, T> {
+    fn new(wrap: T, slice: &'a str) -> Node<'a, T> {
+        Node {
+            elem: box wrap,
+            slice,
+        }
+    }
+
+    pub fn get_slice(&self) -> &'a str {
+        self.slice
+    }
+}
+
+impl<'a, T> AsRef<T> for Node<'a, T> {
+    fn as_ref(&self) -> &T {
+        &self.elem
+    }
+}
+
+trait FromPair<'a>
+where Self: Sized {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError>;
+}
+
+impl<'a, T> FromPair<'a> for Node<'a, T>
+where T: FromPair<'a> + Sized {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
+        Ok(Node{
+            slice: pair.as_str(),
+            elem: box T::from_pair(pair)?,
+        })
+    }
+}
 
 #[derive(Debug)]
-pub struct TopDef {
+pub struct Program<'a>(pub Vec<Node<'a, TopDef<'a>>>);
+
+#[derive(Debug)]
+pub struct TopDef<'a> {
     pub return_type: Type,
     pub ident: String,
     pub args: Vec<Arg>,
-    pub body: Blk,
+    pub body: Node<'a, Blk<'a>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -55,67 +96,79 @@ pub enum Type {
     String,
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            Type::Integer => "integer",
+            Type::Double => "double",
+            Type::Boolean => "boolean",
+            Type::Void => "void",
+            Type::String => "string",
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Arg(pub Type, pub String);
 
 #[derive(Debug)]
-pub struct Blk(pub Vec<Stmt>);
+pub struct Blk<'a>(pub Vec<Node<'a, Stmt<'a>>>);
 
 #[derive(Debug)]
-pub enum Stmt {
-    Return(Expr),
+pub enum Stmt<'a> {
+    Return(Expr<'a>),
     ReturnVoid,
-    If(Expr, Box<Stmt>),
-    IfElse(Expr, Box<Stmt>, Box<Stmt>),
-    While(Expr, Box<Stmt>),
-    Block(Blk),
-    Assignment(String, Expr),
+    If(Expr<'a>, Node<'a, Stmt<'a>>),
+    IfElse(Expr<'a>, Node<'a, Stmt<'a>>, Node<'a, Stmt<'a>>),
+    While(Expr<'a>, Node<'a, Stmt<'a>>),
+    Block(Blk<'a>),
+    Assignment(String, Expr<'a>),
     Increment(String),
     Decrement(String),
-    Expression(Expr),
-    Declare(Type, Vec<DeclItem>),
+    Expression(Expr<'a>),
+    Declare(Type, Vec<DeclItem<'a>>),
     Empty,
 }
 
 #[derive(Debug)]
-pub enum DeclItem {
+pub enum DeclItem<'a> {
     NoInit(String),
-    Init(String, Expr),
+    Init(String, Expr<'a>),
 }
 
-impl DeclItem {
+impl<'a> DeclItem<'a> {
     pub fn get_ident(&self) -> &str { match self {
         DeclItem::NoInit(ident) | DeclItem::Init(ident, _) => &ident
     }}
 }
 
 #[derive(Debug)]
-pub enum Expr {
-    LOr(Box<Expr>, Box<Expr>),
-    LAnd(Box<Expr>, Box<Expr>),
-    GT(Box<Expr>, Box<Expr>),
-    GE(Box<Expr>, Box<Expr>),
-    LT(Box<Expr>, Box<Expr>),
-    LE(Box<Expr>, Box<Expr>),
-    EQ(Box<Expr>, Box<Expr>),
-    NE(Box<Expr>, Box<Expr>),
-    Mul(Box<Expr>, Box<Expr>),
-    Div(Box<Expr>, Box<Expr>),
-    Mod(Box<Expr>, Box<Expr>),
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Neg(Box<Expr>),
-    Not(Box<Expr>),
+pub enum Expr<'a> {
+    LOr(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    LAnd(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    GT(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    GE(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    LT(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    LE(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    EQ(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    NE(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Mul(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Div(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Mod(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Add(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Sub(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
+    Neg(Node<'a, Expr<'a>>),
+    Not(Node<'a, Expr<'a>>),
     Double(f64),
     Integer(i32),
     Boolean(bool),
     Ident(String),
     Str(String),
-    FunctionCall(String, Vec<Expr>),
+    FunctionCall(String, Vec<Node<'a, Expr<'a>>>),
 }
 
-impl Stmt {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for Stmt<'a> {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
@@ -127,15 +180,15 @@ impl Stmt {
             [(Rule::If, _), (Rule::Expr, expr), (Rule::Stmt, stmt1), (Rule::Else, _), (Rule::Stmt, stmt2)]
                 => Stmt::IfElse(
                     Expr::from_pair(expr.clone())?,
-                    box Stmt::from_pair(stmt1.clone())?,
-                    box Stmt::from_pair(stmt2.clone())?,
+                    Node::from_pair(stmt1.clone())?,
+                    Node::from_pair(stmt2.clone())?,
                 ),
 
             [(Rule::If, _), (Rule::Expr, expr), (Rule::Stmt, stmt)]
-                => Stmt::If(Expr::from_pair(expr.clone())?, box Stmt::from_pair(stmt.clone())?),
+                => Stmt::If(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
 
             [(Rule::While, _), (Rule::Expr, expr), (Rule::Stmt, stmt)]
-                => Stmt::While(Expr::from_pair(expr.clone())?, box Stmt::from_pair(stmt.clone())?),
+                => Stmt::While(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
 
             [(Rule::Blk, blk)] => Stmt::Block(Blk::from_pair(blk.clone())?),
 
@@ -163,44 +216,44 @@ impl Stmt {
     }
 }
 
-impl Expr {
-    fn from_pair_rec(rules: &[(Rule, Pair<'_, Rule>)]) -> Result<Self, ASTError> {
+impl<'a> Expr<'a> {
+    fn from_pair_rec(slice: &'a str, rules: &[(Rule, Pair<'a, Rule>)]) -> Result<Self, ASTError> {
         Ok(match &rules[..] {
             [(Rule::Expr1, expp), (Rule::LOr, _), tail..]
-                => Expr::LOr(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::LOr(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr2, expp), (Rule::LAnd, _), tail..]
-                => Expr::LAnd(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::LAnd(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr3, expp), (Rule::GT, _), tail..]
-                => Expr::GT(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::GT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::GE, _), tail..]
-                => Expr::GE(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::GE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::LT, _), tail..]
-                => Expr::LT(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::LT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::LE, _), tail..]
-                => Expr::LE(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::LE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::EQ, _), tail..]
-                => Expr::EQ(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::EQ(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::NE, _), tail..]
-                => Expr::NE(box Expr::from_pair(expp.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::NE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr4, expp1), (Rule::Plus, _), tail..]
-                => Expr::Add(box Expr::from_pair(expp1.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::Add(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr4, expp1), (Rule::Minus, _), tail..]
-                => Expr::Sub(box Expr::from_pair(expp1.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::Sub(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr5, expp1), (Rule::Star, _), tail..]
-                => Expr::Mul(box Expr::from_pair(expp1.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::Mul(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr5, expp1), (Rule::Slash, _), tail..]
-                => Expr::Div(box Expr::from_pair(expp1.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::Div(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr5, expp1), (Rule::Modulus, _), tail..]
-                => Expr::Mod(box Expr::from_pair(expp1.clone())?, box Expr::from_pair_rec(tail)?),
+                => Expr::Mod(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Not, _), (Rule::Expr6, expp)]
-                => Expr::Not(box Expr::from_pair(expp.clone())?),
+                => Expr::Not(Node::from_pair(expp.clone())?),
             [(Rule::Neg, _), (Rule::Expr6, expp)]
-                => Expr::Neg(box Expr::from_pair(expp.clone())?),
+                => Expr::Neg(Node::from_pair(expp.clone())?),
 
             [(Rule::Expr1, expp)] |
             [(Rule::Expr2, expp)] |
@@ -223,6 +276,7 @@ impl Expr {
             [(Rule::Ident, idnp), (Rule::LPar, _), exprs.., (Rule::RPar, _)] => {
                 let exprs = exprs.into_iter()
                     .map(|(_, pair)| Expr::from_pair(pair.clone()))
+                    .map(|r| r.map(|expr| Node::new(expr, slice)))
                     .collect::<Result<Vec<_>, ASTError>>()?;
                 Expr::FunctionCall(idnp.as_str().to_owned(), exprs)
             }
@@ -232,17 +286,20 @@ impl Expr {
             _ => Err("No matching rule for Expr")?,
         })
     }
+}
 
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for Expr<'a> {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
+        let slice = pair.as_str();
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
-        Self::from_pair_rec(&rules[..])
+        Self::from_pair_rec(slice, &rules[..])
     }
 }
 
-impl DeclItem {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for DeclItem<'a> {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
@@ -257,8 +314,8 @@ impl DeclItem {
     }
 }
 
-impl Type {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for Type {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         match pair.as_str() {
             "int" => Ok(Type::Integer),
             "double" => Ok(Type::Double),
@@ -269,20 +326,21 @@ impl Type {
     }
 }
 
-impl Program {
-    pub fn parse(raw: &str) -> Result<Self, ASTError> {
+impl<'a> Program<'a> {
+    pub fn parse(raw: &'a str) -> Result<Self, ASTError> {
         let mut parse = JavaletteParser::parse(Rule::Program, raw)?;
         let program = parse.next().unwrap();
         let top_defs = program.into_inner()
             .filter(|pair| pair.as_rule() == Rule::TopDef)
-            .map(TopDef::from_pair)
-            .collect::<Result<Vec<TopDef>, ASTError>>()?;
+            .map(|pair| (pair.as_str(), TopDef::from_pair(pair)))
+            .map(|(s, r)| r.map(|t| Node::new(t, s)))
+            .collect::<Result<Vec<_>, ASTError>>()?;
         Ok(Program(top_defs))
     }
 }
 
-impl Arg {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for Arg {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let mut type_ = None;
         let mut ident = None;
         for pair in pair.into_inner() {
@@ -296,18 +354,19 @@ impl Arg {
     }
 }
 
-impl Blk {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for Blk<'a> {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let statements = pair.into_inner()
             .filter(|pair| pair.as_rule() == Rule::Stmt)
-            .map(Stmt::from_pair)
-            .collect::<Result<Vec<Stmt>, ASTError>>()?;
+            .map(|p| (p.as_str(), Stmt::from_pair(p)))
+            .map(|(s, r)| r.map(|stmt| Node::new(stmt, s)))
+            .collect::<Result<Vec<_>, ASTError>>()?;
         Ok(Blk(statements))
     }
 }
 
-impl TopDef {
-    pub fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
+impl<'a> FromPair<'a> for TopDef<'a> {
+    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let mut type_ = None;
         let mut ident = None;
         let mut args = vec![];
@@ -317,7 +376,7 @@ impl TopDef {
                 Rule::Type => type_ = Some(Type::from_pair(pair)?),
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 Rule::Arg => args.push(Arg::from_pair(pair)?),
-                Rule::Blk => block = Some(Blk::from_pair(pair)?),
+                Rule::Blk => block = Some(Node::from_pair(pair)?),
                 _ => Err("No matching rule for TopDef")?,
             }
         }
