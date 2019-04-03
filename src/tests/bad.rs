@@ -1,6 +1,8 @@
 use crate::ast::*;
 use crate::typecheck::type_check;
 use crate::returncheck::return_check;
+use crate::minimize::Minimize;
+use crate::voidcheck::void_check;
 
 macro_rules! test_bad {
     ($file:ident) => {
@@ -13,14 +15,19 @@ macro_rules! test_bad {
                 Err(e) => {
                 println!("Success! Program rejected by grammar with the following error: {:?}", e);
                 }
-                Ok(p) => {
+                Ok(mut p) => {
                     if let Err(e) = type_check(&p) {
                         println!("Success! Program rejected by type checker with the following error: {:?}", e);
+                    } else if let Err(e) = return_check(&p){
+                        println!("Success! Program rejected by return checker with the following error: {:?}",e);
                     } else {
-                        if let Err(e) = return_check(&p){
-                            println!("Success! Program rejected by return checker with the following error: {:?}",e);
-                        } else {
-                        assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));}
+                        p.minimize();
+                        if let Err(e) = void_check(&p){
+                            println!("Success! Program rejected by void checker with the following error: {:?}",e)
+                        }
+                        else {
+                            assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));
+                        }
                     }
                 }
             }

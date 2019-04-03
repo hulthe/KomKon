@@ -5,12 +5,12 @@ pub enum Error {
     VoidExpression
 }
 
-macro_rules! n {
-    ($p:pat) => {Node{ elem: box $p, .. }}
+pub fn void_check(prog: &Program) -> Result<(), Error> {
+    prog.check()
 }
 
 pub trait VoidCheckable {
-    ///
+    /// Checks that
     fn check(&self) -> Result<(), Error>;
 }
 
