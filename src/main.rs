@@ -16,7 +16,8 @@ pub mod voidcheck;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write};
-use crate::ast::Program;
+use pest::error::LineColLocation;
+use crate::ast::{Program, ASTError};
 use crate::returncheck::{return_check, Error as ReturnError};
 use crate::typecheck::{type_check, Error};
 use crate::minimize::Minimize;
@@ -131,10 +132,17 @@ fn main() -> io::Result<()> {
                 Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
             }
         }
-        Err(e) => {
+        Err(ASTError::GrammarError(s)) => {
             eprintln!("ERROR");
-            eprintln!("Failed to parse source code.");
-            eprintln!("{:?}", e);
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
+        }
+        Err(ASTError::Pest(e)) => {
+            eprintln!("ERROR");
+            let (sl, sc, el, ec) = match e.line_col {
+                LineColLocation::Pos((sl, sc)) => (sl, sc, sl, sc),
+                LineColLocation::Span((sl, sc), (el, ec)) => (sl, sc, el, ec),
+            };
+            eprintln!("Parse error at line {}, column {}:", sl, sc);
 
             // TODO: Custom error type
             Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))

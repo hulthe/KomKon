@@ -6,7 +6,7 @@ use std::fmt::{self, Display, Formatter};
 #[grammar = "grammar.pest"]
 pub struct JavaletteParser;
 
-type PestError = pest::error::Error<Rule>;
+pub type PestError = pest::error::Error<Rule>;
 
 #[derive(Debug)]
 pub enum ASTError {
