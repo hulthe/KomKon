@@ -12,6 +12,7 @@ pub mod ast;
 pub mod typecheck;
 pub mod returncheck;
 pub mod minimize;
+pub mod voidcheck;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write};
@@ -19,6 +20,7 @@ use crate::ast::Program;
 use crate::returncheck::{return_check, Error as ReturnError};
 use crate::typecheck::{type_check, Error};
 use crate::minimize::Minimize;
+use crate::voidcheck::VoidCheckable;
 use colored::*;
 
 fn get_internal_slice_pos(raw: &str, slice: &str) -> Option<(usize, usize)> {
@@ -76,12 +78,12 @@ fn print_compiler_error(source: &str, error: Error) -> io::Result<()> {
                 let error_slice = &source[start..end];
 
                 write!(handle, "     {} {}\n", "*".red(), format!("{}", kind).bright_red())?;
-                write!(handle,"     {}\n", "|".blue())?;
+                write!(handle, "     {}\n", "|".blue())?;
                 for line in error_slice.lines() {
                     write!(handle, "{} {} {}\n", format!("{:4}", line_count).blue(), "|".blue(), line)?;
                     line_count += 1;
                 }
-                write!(handle,"     {}\n", "|".blue())?;
+                write!(handle, "     {}\n", "|".blue())?;
             } else {
                 write!(handle, "Error at \"{}\":\n  {}\n", slice, kind)?;
             }
