@@ -19,10 +19,8 @@ pub fn return_check(prog: &Program) -> Result<bool, Error> {
         if let TopDef { return_type: Type::Void, ident: _, args: _, body: _ } = td {
             td.check()?;    // will error on unreachable statement
         } else {
-            match td.check() {
-                Err(e) => return Err(e),
-                Ok(false) => return Err(Error::NonReturningFunction),
-                _ => continue
+            if !td.check()? {
+                return Err(Error::NonReturningFunction);
             }
         }
     }
@@ -61,31 +59,44 @@ impl ReturnCheckable for Stmt {
     /// in a returning block to always be evaluated
     fn check(&self) -> Result<bool, Error> {
         match self {
-            Stmt::Return(_) => Ok(true),
+            Stmt::Return(_) => {
+                println!("found a return!");
+                Ok(true)
+            }
+            Stmt::IfElse(expr, stmt1, stmt2) =>
+                {
+                    println!("if-else entered");
+                    let true_branch = stmt1.check()?;
+                    let false_branch = stmt2.check()?;
+                    println!("true branch: {}, false branch: {}", true_branch, false_branch);
+                    // if constant expr, only evaluate corresponding branch
+                    if let Expr::Boolean(val) = expr {
+                        if *val {
+                            Ok(true_branch)
+                        } else {
+                            Ok(false_branch)
+                        }
+                    } else {
+                        // otherwise, both must return
+                        Ok(true_branch && false_branch)
+                    }
+                }
+
             Stmt::If(expr, stmt) => {
                 if let Expr::Boolean(true) = expr {
                     stmt.check()
-                } else { Ok(false) }
-            }
-
-            Stmt::IfElse(expr, stmt1, stmt2) =>
-                {
-                    if let Expr::Boolean(val) = expr {
-                        if *val {
-                            stmt1.check()
-                        } else {
-                            stmt2.check()
-                        }
-                    } else {
-                        Ok(false)
-                    }
+                } else {
+                    Ok(false)
                 }
+            }
 
             Stmt::While(expr, stmt) => {
                 if let Expr::Boolean(true) = expr {
                     stmt.check()
                 } else { Ok(false) }
             }
+
+            Stmt::Block(blk) => blk.check(),
 
             //  Stmt::ReturnVoid() => panic!("http://y2u.be/dQw4w9WgXcQ"),
 

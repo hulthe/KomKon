@@ -16,11 +16,11 @@ macro_rules! test_bad {
                 Ok(p) => {
                     if let Err(e) = type_check(&p) {
                         println!("Success! Program rejected by type checker with the following error: {:?}", e);
-                        if let Err(e) = return_check(&p){
-                            println!("Success! Program rejected by return checker with the following error: {:?}",e)
-                        }
                     } else {
-                        assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));
+                        if let Err(e) = return_check(&p){
+                            println!("Success! Program rejected by return checker with the following error: {:?}",e);
+                        } else {
+                        assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));}
                     }
                 }
             }
