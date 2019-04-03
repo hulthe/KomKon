@@ -56,19 +56,17 @@ impl ReturnCheckable for Blk {
 impl ReturnCheckable for Stmt {
     /// A statement is returning iff it is a Return-statement or
     /// it is a conditional with a constant expression which results
-    /// in a returning block to always be evaluated
+    /// in a returning block to always be evaluated, or if all branches
+    /// are returning
     fn check(&self) -> Result<bool, Error> {
         match self {
             Stmt::Return(_) => {
-                println!("found a return!");
                 Ok(true)
             }
             Stmt::IfElse(expr, stmt1, stmt2) =>
                 {
-                    println!("if-else entered");
                     let true_branch = stmt1.check()?;
                     let false_branch = stmt2.check()?;
-                    println!("true branch: {}, false branch: {}", true_branch, false_branch);
                     // if constant expr, only evaluate corresponding branch
                     if let Expr::Boolean(val) = expr {
                         if *val {
