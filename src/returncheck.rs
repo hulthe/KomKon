@@ -1,23 +1,29 @@
-use crate::ast::{Program, TopDef, Blk};
+use crate::ast::{Program, TopDef, Blk, Type, Stmt, Expr};
 
-enum Error {
-    NonReturningFunction
+#[derive(Debug)]
+pub enum Error {
+    NonReturningFunction,
+    UnreachableStatement,
 }
 
-/// Checks that all branches in all functions in a program return
-///
+/// Checks that functions in the program aren't obviously non-returning
 ///
 /// # Remarks
 ///
 /// Assumes program which passes type checks, i.e. does not control
 /// that the return type matches the function declaration
-fn return_check(prog: &Program) -> Result<bool, Error> {
+///
+/// Assumes simplified constants, e.g. 1==1 should have been replaced with true
+pub fn return_check(prog: &Program) -> Result<bool, Error> {
     for td in &prog.0 {
-        if let TopDef { return_type: Type::Void } = td {
-            continue;
-        } else if !td.check()? {
-            return Err(Error::NonReturningFunction);
-            // TODO currently only returns first error
+        if let TopDef { return_type: Type::Void, ident: _, args: _, body: _ } = td {
+            td.check()?;    // will error on unreachable statement
+        } else {
+            match td.check() {
+                Err(e) => return Err(e),
+                Ok(false) => return Err(Error::NonReturningFunction),
+                _ => continue
+            }
         }
     }
     return Ok(true);
@@ -26,26 +32,26 @@ fn return_check(prog: &Program) -> Result<bool, Error> {
 
 trait ReturnCheckable {
     /// Should return Ok(true) iff the branch is returning
-    fn check(&self) -> Result<bool, ()>;
+    fn check(&self) -> Result<bool, Error>;
 }
 
 impl ReturnCheckable for TopDef {
     /// A function is returning iff its block is returning
-    fn check(&self) -> Result<bool, ()> {
+    fn check(&self) -> Result<bool, Error> {
         self.body.check()
     }
 }
 
 impl ReturnCheckable for Blk {
     /// A block is returning iff a statement within the block is returning
-    fn check(&self) -> Result<bool, ()> {
-        for st in self.0 {
+    fn check(&self) -> Result<bool, Error> {
+        for st in &self.0 {
             if st.check()? {
                 return Ok(true);
                 // TODO this is where could check for unreachable statements
             }
         }
-        return false;
+        return Ok(false);
     }
 }
 
@@ -53,7 +59,7 @@ impl ReturnCheckable for Stmt {
     /// A statement is returning iff it is a Return-statement or
     /// it is a conditional with a constant expression which results
     /// in a returning block to always be evaluated
-    fn check(&self) -> Result<bool, ()> {
+    fn check(&self) -> Result<bool, Error> {
         match self {
             Stmt::Return(_) => Ok(true),
             Stmt::If(expr, stmt) => {
@@ -65,7 +71,7 @@ impl ReturnCheckable for Stmt {
             Stmt::IfElse(expr, stmt1, stmt2) =>
                 {
                     if let Expr::Boolean(val) = expr {
-                        if val {
+                        if *val {
                             stmt1.check()
                         } else {
                             stmt2.check()
@@ -81,7 +87,7 @@ impl ReturnCheckable for Stmt {
                 } else { Ok(false) }
             }
 
-            Stmt::ReturnVoid() => panic!("http://y2u.be/dQw4w9WgXcQ"),
+            //  Stmt::ReturnVoid() => panic!("http://y2u.be/dQw4w9WgXcQ"),
 
             _ => Ok(false)
         }
