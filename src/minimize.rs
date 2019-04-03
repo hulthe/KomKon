@@ -1,4 +1,4 @@
-use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr};
+use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr, DeclItem};
 
 /// This trait is for nodes in the AST which can be minimized.
 /// e.g. Expr:s on the form Add(Sub(2, 1), 3) should become 4.
@@ -43,9 +43,10 @@ impl<'a> Minimize for Stmt<'a> {
             }
             Stmt::Block(block) => block.minimize(),
 
+            Stmt::Declare(_, items) => items.iter_mut().for_each(Minimize::minimize),
+
             Stmt::Empty |
             Stmt::ReturnVoid |
-            Stmt::Declare(_, _) |
             Stmt::Increment(_) |
             Stmt::Decrement(_) => {}
         }
@@ -56,6 +57,14 @@ impl<'a> Minimize for Blk<'a> {
     fn minimize(&mut self) {
         for stmt in &mut self.0 {
             stmt.minimize();
+        }
+    }
+}
+
+impl<'a> Minimize for DeclItem<'a> {
+    fn minimize(&mut self) {
+        if let DeclItem::Init(_, expr) = self {
+            expr.minimize();
         }
     }
 }
