@@ -11,12 +11,14 @@ mod tests;
 pub mod ast;
 pub mod typecheck;
 pub mod returncheck;
+pub mod minimize;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write};
 use crate::ast::Program;
 use crate::returncheck::return_check;
 use crate::typecheck::{type_check, Error};
+use crate::minimize::Minimize;
 use colored::*;
 
 fn get_internal_slice_pos(raw: &str, slice: &str) -> Option<(usize, usize)> {

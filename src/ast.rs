@@ -60,6 +60,11 @@ impl<'a, T> AsRef<T> for Node<'a, T> {
         &self.elem
     }
 }
+impl<'a, T> AsMut<T> for Node<'a, T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.elem
+    }
+}
 
 trait FromPair<'a>
 where Self: Sized {
