@@ -45,7 +45,7 @@ impl<'a> ReturnCheckable for TopDef<'a> {
 }
 
 impl<'a, T> ReturnCheckable for Node<'a, T>
-where T: ReturnCheckable {
+    where T: ReturnCheckable {
     fn check(&self) -> Result<bool, Error> {
         self.elem.check()
     }
@@ -74,29 +74,22 @@ impl<'a> ReturnCheckable for Stmt<'a> {
             Stmt::Return(_) => {
                 Ok(true)
             }
-            Stmt::IfElse(expr, stmt1, stmt2) =>
-                {
-                    let true_branch = stmt1.check()?;
-                    let false_branch = stmt2.check()?;
-                    // if constant expr, only evaluate corresponding branch
-                    if let Expr::Boolean(val) = expr {
-                        if *val {
-                            Ok(true_branch)
-                        } else {
-                            Ok(false_branch)
-                        }
-                    } else {
-                        // otherwise, both must return
-                        Ok(true_branch && false_branch)
-                    }
+            Stmt::IfElse(expr, stmt1, stmt2) => {
+                let true_branch = stmt1.check()?;
+                let false_branch = stmt2.check()?;
+
+                // if constant expr, only evaluate corresponding branch
+                match expr {
+                    Expr::Boolean(true) => Ok(true_branch),
+                    Expr::Boolean(false) => Ok(false_branch),
+                    _ => Ok(true_branch && false_branch)
                 }
+            }
 
             Stmt::If(expr, stmt) => {
                 if let Expr::Boolean(true) = expr {
                     stmt.check()
-                } else {
-                    Ok(false)
-                }
+                } else { Ok(false) }
             }
 
             Stmt::While(expr, stmt) => {
@@ -106,8 +99,6 @@ impl<'a> ReturnCheckable for Stmt<'a> {
             }
 
             Stmt::Block(blk) => blk.check(),
-
-            //  Stmt::ReturnVoid() => panic!("http://y2u.be/dQw4w9WgXcQ"),
 
             _ => Ok(false)
         }
