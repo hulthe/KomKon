@@ -1,4 +1,8 @@
+use crate::CompilerError;
 use crate::ast::{Type, Program, TopDef, Blk, Stmt, Arg, DeclItem, Expr, Node};
+use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
+use colored::*;
+use std::io::{self, Write, StderrLock};
 use std::fmt::{Display, Formatter, self};
 
 #[derive(Debug)]
@@ -25,6 +29,26 @@ enum StackElem {
 pub enum Error<'a> {
     Context(&'a str, ErrorKind),
     NoContext(ErrorKind),
+}
+
+impl<'a> CompilerError for Error<'a> {
+    fn display(&self, w: &mut StderrLock, source_code: &str) -> io::Result<()> {
+        let kind = match self {
+            Error::NoContext(kind) => kind,
+            Error::Context(s, kind) => {
+                if let Some((i, len)) = get_internal_slice_pos(source_code, s) {
+                    let j = i + len;
+                    let i = byte_pos_to_line(source_code, i);
+                    let j = byte_pos_to_line(source_code, j);
+                    print_error(w, source_code, &format!("{}", kind), i, j)?;
+                    return Ok(());
+                }
+                kind
+            }
+        };
+        write!(w, "  {}\n", &format!("{}", kind).bright_red())?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

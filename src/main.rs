@@ -19,35 +19,16 @@ use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write, StderrLock};
 use crate::ast::Program;
 use crate::returncheck::return_check;
-use crate::typecheck::{type_check, Error as TypeError};
+use crate::typecheck::type_check;
 use crate::minimize::Minimize;
 use crate::voidcheck::void_check;
-use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
 use colored::*;
 
+/// A trait for objects which can display compilation error messages
 pub trait CompilerError {
     fn display(&self, writer: &mut StderrLock, source_code: &str) -> io::Result<()>;
 }
 
-impl<'a> CompilerError for TypeError<'a> {
-    fn display(&self, w: &mut StderrLock, source_code: &str) -> io::Result<()> {
-        let kind = match self {
-            TypeError::NoContext(kind) => kind,
-            TypeError::Context(s, kind) => {
-                if let Some((i, len)) = get_internal_slice_pos(source_code, s) {
-                    let j = i + len;
-                    let i = byte_pos_to_line(source_code, i);
-                    let j = byte_pos_to_line(source_code, j);
-                    print_error(w, source_code, &format!("{}", kind), i, j)?;
-                    return Ok(());
-                }
-                kind
-            }
-        };
-        write!(w, "  {}\n", &format!("{}", kind).bright_red())?;
-        Ok(())
-    }
-}
 
 fn step<I, O, E>(input: I, source_code: &str, f: fn(I) -> Result<O, E>) -> Result<O, ()>
 where E: CompilerError {
