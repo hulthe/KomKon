@@ -10,15 +10,21 @@ pub fn void_check(prog: &Program) -> Result<(), Error> {
 }
 
 pub trait VoidCheckable {
-    /// Checks that
+    /// Should check that the element and all its children do not include void statements
+    /// such as '1;'
     fn check(&self) -> Result<(), Error>;
 }
 
 impl<'a> VoidCheckable for Program<'a> {
-    fn check(&self) -> Result<(), Error>
-    {
+    fn check(&self) -> Result<(), Error> {
         for td in &self.0 { td.check()?; }
         Ok(())
+    }
+}
+
+impl<'a> VoidCheckable for TopDef<'a> {
+    fn check(&self) -> Result<(), Error> {
+        self.body.check()
     }
 }
 
@@ -29,9 +35,12 @@ impl<'a, T> VoidCheckable for Node<'a, T>
     }
 }
 
-impl<'a> VoidCheckable for TopDef<'a> {
+impl<'a> VoidCheckable for Blk<'a> {
     fn check(&self) -> Result<(), Error> {
-        self.body.check()
+        for stmt in &self.0 {
+            stmt.check()?;
+        }
+        Ok(())
     }
 }
 
@@ -46,6 +55,7 @@ impl<'a> VoidCheckable for Stmt<'a> {
                 | Expr::Ident(_)
                 | Expr::Str(_)
                 => Err(Error::VoidExpression),
+
                 _ => Ok(())
             }
 
@@ -65,14 +75,5 @@ impl<'a> VoidCheckable for Stmt<'a> {
 
             _ => Ok(())
         }
-    }
-}
-
-impl<'a> VoidCheckable for Blk<'a> {
-    fn check(&self) -> Result<(), Error> {
-        for stmt in &self.0 {
-            stmt.check()?;
-        }
-        Ok(())
     }
 }
