@@ -37,13 +37,13 @@ impl CompilerError for ASTError {
 
                 use pest::error::ErrorVariant;
                 match &e.variant {
-                        ErrorVariant::CustomError{message} => {
-                            print_error(w, source_code, &message, sl, el)?;
-                        }
-                        ErrorVariant::ParsingError{positives, negatives} => {
-                            print_error(w, source_code,
-                                &format!("Parse error at line {}, column {}.\n  Positives: {:?}\n  Negatives: {:?}", sl, sc, positives, negatives), sl, el)?;
-                        }
+                    ErrorVariant::CustomError { message } => {
+                        print_error(w, source_code, &message, sl, el)?;
+                    }
+                    ErrorVariant::ParsingError { positives, negatives } => {
+                        print_error(w, source_code,
+                                    &format!("Parse error at line {}, column {}.\n  Positives: {:?}\n  Negatives: {:?}", sl, sc, positives, negatives), sl, el)?;
+                    }
                 }
             }
         }
@@ -69,6 +69,8 @@ impl From<&str> for ASTError {
     }
 }
 
+
+/// This wraps AST-elements to include meta data
 #[derive(Debug, Clone)]
 pub struct Node<'a, T> {
     pub elem: Box<T>,
@@ -83,6 +85,7 @@ impl<'a, T> Node<'a, T> {
         }
     }
 
+    /// Get the source code for this element
     pub fn get_slice(&self) -> &'a str {
         self.slice
     }
@@ -93,21 +96,27 @@ impl<'a, T> AsRef<T> for Node<'a, T> {
         &self.elem
     }
 }
+
 impl<'a, T> AsMut<T> for Node<'a, T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.elem
     }
 }
 
+/// Trait for converting pest pairs into concrete types
+///
+/// # Example
+///
+/// `pest::Pair{rule: Rule::Expr}` to `Expr`
 trait FromPair<'a>
-where Self: Sized {
+    where Self: Sized {
     fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError>;
 }
 
 impl<'a, T> FromPair<'a> for Node<'a, T>
-where T: FromPair<'a> + Sized {
+    where T: FromPair<'a> + Sized {
     fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
-        Ok(Node{
+        Ok(Node {
             slice: pair.as_str(),
             elem: box T::from_pair(pair)?,
         })
@@ -175,9 +184,11 @@ pub enum DeclItem<'a> {
 }
 
 impl<'a> DeclItem<'a> {
-    pub fn get_ident(&self) -> &str { match self {
-        DeclItem::NoInit(ident) | DeclItem::Init(ident, _) => &ident
-    }}
+    pub fn get_ident(&self) -> &str {
+        match self {
+            DeclItem::NoInit(ident) | DeclItem::Init(ident, _) => &ident
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -213,25 +224,25 @@ impl<'a> FromPair<'a> for Stmt<'a> {
         let stmt = match &rules[..] {
             [(Rule::Return, _), (Rule::Expr, expp)] => Stmt::Return(Expr::from_pair(expp.clone())?),
 
-            [(Rule::Return, _),] => Stmt::ReturnVoid,
+            [(Rule::Return, _), ] => Stmt::ReturnVoid,
 
             [(Rule::If, _), (Rule::Expr, expr), (Rule::Stmt, stmt1), (Rule::Else, _), (Rule::Stmt, stmt2)]
-                => Stmt::IfElse(
-                    Expr::from_pair(expr.clone())?,
-                    Node::from_pair(stmt1.clone())?,
-                    Node::from_pair(stmt2.clone())?,
-                ),
+            => Stmt::IfElse(
+                Expr::from_pair(expr.clone())?,
+                Node::from_pair(stmt1.clone())?,
+                Node::from_pair(stmt2.clone())?,
+            ),
 
             [(Rule::If, _), (Rule::Expr, expr), (Rule::Stmt, stmt)]
-                => Stmt::If(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
+            => Stmt::If(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
 
             [(Rule::While, _), (Rule::Expr, expr), (Rule::Stmt, stmt)]
-                => Stmt::While(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
+            => Stmt::While(Expr::from_pair(expr.clone())?, Node::from_pair(stmt.clone())?),
 
             [(Rule::Blk, blk)] => Stmt::Block(Blk::from_pair(blk.clone())?),
 
             [(Rule::Ident, idep), (Rule::Assign, _), (Rule::Expr, expp)]
-                => Stmt::Assignment(idep.as_str().to_owned(), Expr::from_pair(expp.clone())?),
+            => Stmt::Assignment(idep.as_str().to_owned(), Expr::from_pair(expp.clone())?),
 
             [(Rule::Ident, idep), (Rule::Inc, _)] => Stmt::Increment(idep.as_str().to_owned()),
 
@@ -255,43 +266,44 @@ impl<'a> FromPair<'a> for Stmt<'a> {
 }
 
 impl<'a> Expr<'a> {
+    /// Recursively un-nests an expression
     fn from_pair_rec(slice: &'a str, rules: &[(Rule, Pair<'a, Rule>)]) -> Result<Self, ASTError> {
         Ok(match &rules[..] {
             [(Rule::Expr1, expp), (Rule::LOr, _), tail..]
-                => Expr::LOr(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::LOr(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr2, expp), (Rule::LAnd, _), tail..]
-                => Expr::LAnd(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::LAnd(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr3, expp), (Rule::GT, _), tail..]
-                => Expr::GT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::GT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::GE, _), tail..]
-                => Expr::GE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::GE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::LT, _), tail..]
-                => Expr::LT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::LT(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::LE, _), tail..]
-                => Expr::LE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::LE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::EQ, _), tail..]
-                => Expr::EQ(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::EQ(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr3, expp), (Rule::NE, _), tail..]
-                => Expr::NE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::NE(Node::from_pair(expp.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr4, expp1), (Rule::Plus, _), tail..]
-                => Expr::Add(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::Add(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr4, expp1), (Rule::Minus, _), tail..]
-                => Expr::Sub(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::Sub(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Expr5, expp1), (Rule::Star, _), tail..]
-                => Expr::Mul(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::Mul(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr5, expp1), (Rule::Slash, _), tail..]
-                => Expr::Div(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::Div(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
             [(Rule::Expr5, expp1), (Rule::Modulus, _), tail..]
-                => Expr::Mod(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
+            => Expr::Mod(Node::from_pair(expp1.clone())?, Node::new(Expr::from_pair_rec(slice, tail)?, slice)),
 
             [(Rule::Not, _), (Rule::Expr6, expp)]
-                => Expr::Not(Node::from_pair(expp.clone())?),
+            => Expr::Not(Node::from_pair(expp.clone())?),
             [(Rule::Neg, _), (Rule::Expr6, expp)]
-                => Expr::Neg(Node::from_pair(expp.clone())?),
+            => Expr::Neg(Node::from_pair(expp.clone())?),
 
             [(Rule::Expr1, expp)] |
             [(Rule::Expr2, expp)] |
@@ -309,7 +321,7 @@ impl<'a> Expr<'a> {
             [(Rule::String, strp)] => Expr::Str(strp.as_str().to_owned()),
 
             [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
-                => Expr::from_pair(expp.clone())?,
+            => Expr::from_pair(expp.clone())?,
 
             [(Rule::Ident, idnp), (Rule::LPar, _), exprs.., (Rule::RPar, _)] => {
                 let exprs = exprs.into_iter()
@@ -343,7 +355,7 @@ impl<'a> FromPair<'a> for DeclItem<'a> {
             .collect::<Vec<_>>();
         Ok(match &rules[..] {
             [(Rule::Ident, idenp), (Rule::Assign, _), (Rule::Expr, expp)]
-                => DeclItem::Init(idenp.as_str().to_owned(), Expr::from_pair(expp.clone())?),
+            => DeclItem::Init(idenp.as_str().to_owned(), Expr::from_pair(expp.clone())?),
 
             [(Rule::Ident, idenp)] => DeclItem::NoInit(idenp.as_str().to_owned()),
 
@@ -418,7 +430,7 @@ impl<'a> FromPair<'a> for TopDef<'a> {
                 _ => Err("No matching rule for TopDef")?,
             }
         }
-        Ok(TopDef{
+        Ok(TopDef {
             return_type: type_.ok_or("No Type set for TopDef")?,
             ident: ident.ok_or("No Ident set for TopDef")?,
             args,

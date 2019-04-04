@@ -22,6 +22,7 @@ pub fn void_check(prog: &Program) -> Result<(), Error> {
     prog.check()
 }
 
+/// An AST-element which can be checked for illegal void expressions
 pub trait VoidCheckable {
     /// Should check that the element and all its children do not include void statements
     /// such as '1;'

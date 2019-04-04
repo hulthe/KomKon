@@ -27,7 +27,6 @@ pub enum Error<'a> {
     NoContext(ErrorKind),
 }
 
-// TODO add descriptions?
 #[derive(Debug)]
 pub enum ErrorKind {
     Type { expected: Type, got: Type },
@@ -48,7 +47,7 @@ impl Display for ErrorKind {
         match self {
             ErrorKind::Type { expected, got } => write!(f, "Invalid Type. Expected {}. Got {}.", expected, got),
             ErrorKind::MismatchedType { lhs, rhs } => write!(f, "Mismatched Types. {} != {}.", lhs, rhs),
-            ErrorKind::InvalidReturnType { expected , got } => write!(f, "Invalid Return Type. Expected {}. Got {}.", expected, got),
+            ErrorKind::InvalidReturnType { expected, got } => write!(f, "Invalid Return Type. Expected {}. Got {}.", expected, got),
             ErrorKind::Undeclared {} => write!(f, "Use of undeclared identifier"),
             ErrorKind::AlreadyDeclared {} => write!(f, "Cannot redeclare variable within the same scope"),
             ErrorKind::NotPartialOrdered { got } => write!(f, "The type {} is not PartialOrd", got),
@@ -86,6 +85,8 @@ pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
     Ok(())
 }
 
+
+/// Pops the stack to and including the latest scope
 fn pop_scope(stack: &mut Vec<StackElem>) {
     while let Some(elem) = stack.pop() {
         if let StackElem::Scope(_) = elem {
@@ -108,7 +109,7 @@ trait TypeCheckable<'a> {
 }
 
 impl<'a, T> TypeCheckable<'a> for Node<'a, T>
-where T: TypeCheckable<'a> {
+    where T: TypeCheckable<'a> {
     fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         match self.elem.check(stack, func_type) {
             Err(Error::NoContext(e)) => {
@@ -210,7 +211,6 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             => {
                 assert_type(Type::Boolean, lhs.check(stack, func_type)?)?;
                 assert_type(Type::Boolean, rhs.check(stack, func_type)?)?;
-
                 Ok(Type::Boolean)
             }
 
@@ -328,7 +328,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                     for (arg, param_t) in it {
                         let arg_t = arg.check(stack, func_type)?;
                         if param_t != arg_t {
-                            return Err(Error::NoContext(ErrorKind::Type{ expected: param_t, got: arg_t }));
+                            return Err(Error::NoContext(ErrorKind::Type { expected: param_t, got: arg_t }));
                         }
                     }
                     Ok(t)
@@ -349,7 +349,6 @@ fn is_number(t: &Type) -> bool {
     }
 }
 
-// TODO: make sure the rights types are ord/part_ord
 fn is_ord(t: &Type) -> bool {
     match t {
         Type::Integer |
@@ -375,6 +374,7 @@ fn is_eq(t: &Type) -> bool {
     }
 }
 
+/// Pushes an identifier onto the stack. If already defined in scope, produces Error
 fn push_stack_def<'a>(stack: &mut Vec<StackElem>, elem: StackType) -> Result<(), Error<'a>> {
     if let None = search_stack_scope(stack, elem.get_ident()) {
         stack.push(StackElem::Type(elem));
