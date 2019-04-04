@@ -1,9 +1,25 @@
 use crate::ast::{Program, Node, TopDef, Blk, Type, Stmt, Expr};
+use std::io::{self, Write, StderrLock};
+use colored::*;
+use crate::CompilerError;
 
 #[derive(Debug)]
 pub enum Error {
     NonReturningFunction,
     UnreachableStatement,
+}
+
+impl CompilerError for Error {
+    fn display(&self, w: &mut StderrLock, _: &str) -> io::Result<()> {
+        match self {
+            Error::NonReturningFunction => {
+                write!(w, "  {}\n", "Function does not always return.".bright_red())
+            }
+            Error::UnreachableStatement => {
+                write!(w, "  {}\n", "Unreachable statement.".bright_red())
+            }
+        }
+    }
 }
 
 macro_rules! n {

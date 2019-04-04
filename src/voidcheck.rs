@@ -1,8 +1,21 @@
 use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr};
+use std::io::{self, Write, StderrLock};
+use colored::*;
+use crate::CompilerError;
 
 #[derive(Debug)]
 pub enum Error {
     VoidExpression
+}
+
+impl CompilerError for Error {
+    fn display(&self, w: &mut StderrLock, _: &str) -> io::Result<()> {
+        match self {
+            Error::VoidExpression => {
+                write!(w, "  {}\n", "Void expressions are not allowed".bright_red())
+            }
+        }
+    }
 }
 
 pub fn void_check(prog: &Program) -> Result<(), Error> {
@@ -77,3 +90,4 @@ impl<'a> VoidCheckable for Stmt<'a> {
         }
     }
 }
+

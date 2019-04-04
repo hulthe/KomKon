@@ -13,86 +13,63 @@ pub mod typecheck;
 pub mod returncheck;
 pub mod minimize;
 pub mod voidcheck;
+pub mod util;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
-use std::io::{self, Read, Write};
-use pest::error::LineColLocation;
-use crate::ast::{Program, ASTError};
-use crate::returncheck::{return_check, Error as ReturnError};
-use crate::typecheck::{type_check, Error};
+use std::io::{self, Read, Write, StderrLock};
+use crate::ast::Program;
+use crate::returncheck::return_check;
+use crate::typecheck::{type_check, Error as TypeError};
 use crate::minimize::Minimize;
-use crate::voidcheck::VoidCheckable;
+use crate::voidcheck::void_check;
+use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
 use colored::*;
 
-fn get_internal_slice_pos(raw: &str, slice: &str) -> Option<(usize, usize)> {
-    let other_s = raw.as_ptr() as usize;
-    let other_e = other_s + raw.len();
-    let our_s = slice.as_ptr() as usize;
-    let our_e = our_s + slice.len();
+pub trait CompilerError {
+    fn display(&self, writer: &mut StderrLock, source_code: &str) -> io::Result<()>;
+}
 
-    if other_s <= our_s && other_e >= our_e {
-        Some((our_s - other_s, slice.len()))
-    } else {
-        None
+impl<'a> CompilerError for TypeError<'a> {
+    fn display(&self, w: &mut StderrLock, source_code: &str) -> io::Result<()> {
+        let kind = match self {
+            TypeError::NoContext(kind) => kind,
+            TypeError::Context(s, kind) => {
+                if let Some((i, len)) = get_internal_slice_pos(source_code, s) {
+                    let j = i + len;
+                    let i = byte_pos_to_line(source_code, i);
+                    let j = byte_pos_to_line(source_code, j);
+                    print_error(w, source_code, &format!("{}", kind), i, j)?;
+                    return Ok(());
+                }
+                kind
+            }
+        };
+        write!(w, "  {}\n", &format!("{}", kind).bright_red())?;
+        Ok(())
     }
 }
 
-fn print_compiler_error(source: &str, error: Error) -> io::Result<()> {
-    let stderr = io::stderr();
-    let mut handle = stderr.lock();
-
-    write!(handle, "{}\n", "ERROR".red())?;
-    match error {
-        Error::Context(slice, kind) => {
-            if let Some((start_byte, len)) = get_internal_slice_pos(source, slice) {
-                let mut start = 0;
-                let mut end = source.len();
-                let mut byte = 0;
-                let mut iter = source.chars();
-                while let Some(c) = iter.next() {
-                    byte += c.len_utf8();
-                    if c == '\n' {
-                        start = byte;
-                    }
-                    if byte >= start_byte {
-                        //println!("Found start @ {}", start);
-                        break;
-                    }
-                }
-
-                for c in iter {
-                    if byte >= start_byte + len && c == '\n' {
-                        end = byte;
-                        //println!("Found end @ {}", end);
-                        break;
-                    }
-                    byte += c.len_utf8();
-                }
-
-                let mut line_count = 1;
-                for c in source[0..start_byte].chars() {
-                    if c == '\n' {
-                        line_count += 1;
-                    }
-                }
-
-                let error_slice = &source[start..end];
-
-                write!(handle, "     {} {}\n", "*".red(), format!("{}", kind).bright_red())?;
-                write!(handle, "     {}\n", "|".blue())?;
-                for line in error_slice.lines() {
-                    write!(handle, "{} {} {}\n", format!("{:4}", line_count).blue(), "|".blue(), line)?;
-                    line_count += 1;
-                }
-                write!(handle, "     {}\n", "|".blue())?;
-            } else {
-                write!(handle, "Error at \"{}\":\n  {}\n", slice, kind)?;
-            }
-        }
-        Error::NoContext(kind) => {
-            write!(handle, "{}", kind)?;
+fn step<I, O, E: CompilerError>(input: I, source_code: &str, f: fn(I) -> Result<O, E>) -> Result<O, ()> {
+    match f(input) {
+        Ok(o) => Ok(o),
+        Err(e) => {
+            let stderr = io::stderr();
+            let mut handle = stderr.lock();
+            write!(handle, "{}", "ERROR\n".red()).expect("Could not write to stderr");
+            e.display(&mut handle, source_code).expect("Could not write compiler error message");
+            Err(())
         }
     }
+}
+
+fn compile(source_code: &str) -> Result<(), ()> {
+
+    let mut p = step(source_code, source_code, Program::parse)?;
+    step(&p, source_code, type_check)?;
+    step(&p, source_code, return_check)?;
+    p.minimize();
+    step(&p, source_code, void_check)?;
+
     Ok(())
 }
 
@@ -103,49 +80,14 @@ fn main() -> io::Result<()> {
         (about: crate_description!())
     ).get_matches();
     let mut buffer = String::new();
-    let stdin = io::stdin();
-    let mut handle = stdin.lock();
+    {
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
+        handle.read_to_string(&mut buffer)?;
+    }
 
-    handle.read_to_string(&mut buffer)?;
-
-    match Program::parse(&buffer) {
-        Ok(mut r) => match type_check(&r) {
-            Ok(_) => {
-                r.minimize();
-                match return_check(&r) {
-                    Ok(_) => {
-                        eprintln!("OK");
-                        Ok(())
-                    }
-                    Err(ReturnError::NonReturningFunction) => {
-                        eprintln!("ERROR\nFunction does not always return.");
-                        Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
-                    }
-                    Err(ReturnError::UnreachableStatement) => {
-                        eprintln!("ERROR\nUnreachable statement.");
-                        Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
-                    }
-                }
-            }
-            Err(e) => {
-                print_compiler_error(&buffer, e)?;
-                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
-            }
-        }
-        Err(ASTError::GrammarError(s)) => {
-            eprintln!("ERROR");
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
-        }
-        Err(ASTError::Pest(e)) => {
-            eprintln!("ERROR");
-            let (sl, sc, el, ec) = match e.line_col {
-                LineColLocation::Pos((sl, sc)) => (sl, sc, sl, sc),
-                LineColLocation::Span((sl, sc), (el, ec)) => (sl, sc, el, ec),
-            };
-            eprintln!("Parse error at line {}, column {}:", sl, sc);
-
-            // TODO: Custom error type
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not compile."))
-        }
+    match compile(&buffer) {
+        Ok(()) => Ok(()),
+        Err(_) => std::process::exit(1),
     }
 }

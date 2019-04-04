@@ -61,7 +61,7 @@ impl Display for ErrorKind {
     }
 }
 
-pub fn type_check<'a>(prog: &'a Program) -> Result<bool, Error<'a>> {
+pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
     use self::{StackType::*};
     let mut stack: Vec<StackElem> = vec![];
 
@@ -83,7 +83,7 @@ pub fn type_check<'a>(prog: &'a Program) -> Result<bool, Error<'a>> {
         td.elem.check(&mut stack, Type::Void)?;
     }
 
-    Ok(true)
+    Ok(())
 }
 
 fn pop_scope(stack: &mut Vec<StackElem>) {
