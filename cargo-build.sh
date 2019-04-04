@@ -1,4 +1,6 @@
 #!/bin/sh
+# Make sure cargo is installed (along with rust nightly).
+# Then build the project.
 
 echo "Checking for an existing version of cargo..."
 

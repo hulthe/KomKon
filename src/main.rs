@@ -87,7 +87,10 @@ fn main() -> io::Result<()> {
     }
 
     match compile(&buffer) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            eprintln!("OK");
+            Ok(())
+        },
         Err(_) => std::process::exit(1),
     }
 }
