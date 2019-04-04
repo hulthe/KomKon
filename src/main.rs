@@ -49,7 +49,8 @@ impl<'a> CompilerError for TypeError<'a> {
     }
 }
 
-fn step<I, O, E: CompilerError>(input: I, source_code: &str, f: fn(I) -> Result<O, E>) -> Result<O, ()> {
+fn step<I, O, E>(input: I, source_code: &str, f: fn(I) -> Result<O, E>) -> Result<O, ()>
+where E: CompilerError {
     match f(input) {
         Ok(o) => Ok(o),
         Err(e) => {
@@ -63,7 +64,6 @@ fn step<I, O, E: CompilerError>(input: I, source_code: &str, f: fn(I) -> Result<
 }
 
 fn compile(source_code: &str) -> Result<(), ()> {
-
     let mut p = step(source_code, source_code, Program::parse)?;
     step(&p, source_code, type_check)?;
     step(&p, source_code, return_check)?;
@@ -88,7 +88,7 @@ fn main() -> io::Result<()> {
 
     match compile(&buffer) {
         Ok(()) => {
-            eprintln!("OK");
+            eprintln!("{}", "OK".green());
             Ok(())
         },
         Err(_) => std::process::exit(1),
