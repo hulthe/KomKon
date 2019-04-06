@@ -64,6 +64,8 @@ pub enum ErrorKind {
     NotNumber { got: Type },
     NotAFunction,
     InvalidArgumentCount { expected: usize, got: usize },
+    InvalidMainDef,
+    MissingMain,
 }
 
 impl Display for ErrorKind {
@@ -73,13 +75,15 @@ impl Display for ErrorKind {
             ErrorKind::MismatchedType { lhs, rhs } => write!(f, "Mismatched Types. {} != {}.", lhs, rhs),
             ErrorKind::InvalidReturnType { expected, got } => write!(f, "Invalid Return Type. Expected {}. Got {}.", expected, got),
             ErrorKind::Undeclared {} => write!(f, "Use of undeclared identifier"),
-            ErrorKind::AlreadyDeclared {} => write!(f, "Cannot redeclare variable within the same scope"),
+            ErrorKind::AlreadyDeclared {} => write!(f, "Cannot redeclare a function or a variable within the same scope"),
             ErrorKind::NotPartialOrdered { got } => write!(f, "The type {} is not PartialOrd", got),
             ErrorKind::NotOrdered { got } => write!(f, "The type {} is not Ord", got),
             ErrorKind::NotEq { got } => write!(f, "The type {} is not Eq", got),
             ErrorKind::NotNumber { got } => write!(f, "The type {} does not represent a number", got),
             ErrorKind::NotAFunction => write!(f, "Attempted to call a variable as a function"),
             ErrorKind::InvalidArgumentCount { expected, got } => write!(f, "Invalid argument count. Expected {}. Got {}", expected, got),
+            ErrorKind::InvalidMainDef => write!(f, "Invalid definition of \"main\".\nMust have return type int and no parameters."),
+            ErrorKind::MissingMain => write!(f, "Function \"main\" must be defined."),
         }
     }
 }
@@ -95,12 +99,20 @@ pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
     stack.push(StackElem::Type(Function(Type::Double, "readDouble".into(), vec![])));
 
     for td in &prog.0 {
-        stack.push(StackElem::Type(Function(
+        if td.elem.ident == "main" {
+            if td.elem.return_type != Type::Integer ||
+                td.elem.args.len() != 0 {
+                return Err(Error::Context(td.get_slice(), ErrorKind::InvalidMainDef))
+            }
+        }
+        push_stack_def(&mut stack, Function(
             td.elem.return_type,
             td.elem.ident.clone(),
             td.elem.args.clone(),
-        )));
+        ))?;
     }
+
+    search_stack(&stack, "main").ok_or(Error::NoContext(ErrorKind::MissingMain))?;
 
     for td in &prog.0 {
         td.elem.check(&mut stack, Type::Void)?;
@@ -192,7 +204,7 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
             }
 
             Stmt::Assignment(ident, stmt)
-            => if let Ok(StackType::Variable(type_, _)) = search_stack(stack, ident) {
+            => if let Some(StackType::Variable(type_, _)) = search_stack(stack, ident) {
                 assert_type(*type_, stmt.check(stack, func_type)?)?;
             } else {
                 return Err(Error::NoContext(ErrorKind::Undeclared {}));
@@ -200,7 +212,7 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
 
             Stmt::Increment(ident) | Stmt::Decrement(ident)
             => match search_stack(stack, ident) {
-                Ok(StackType::Variable(type_, _ident))
+                Some(StackType::Variable(type_, _ident))
                 => { assert_type(Type::Integer, *type_)?; }
 
                 _ => return Err(Error::NoContext(ErrorKind::Undeclared {}))
@@ -219,7 +231,9 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
             }
 
             Stmt::Block(child) => { child.check(stack, func_type)?; }
-            Stmt::Expression(child) => { child.check(stack, func_type)?; }
+            Stmt::Expression(child) => {
+                assert_type(Type::Void, child.check(stack, func_type)?)?;
+            }
             Stmt::Empty => {}
         }
         Ok(Type::Void)
@@ -331,15 +345,15 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             => Ok(Type::String),
             Expr::Ident(ident)
             => match search_stack(stack, ident) {
-                Ok(StackType::Variable(t, _)) => Ok(*t),
-                Ok(StackType::Function(t, ..)) => Ok(*t),
+                Some(StackType::Variable(t, _)) => Ok(*t),
+                Some(StackType::Function(t, ..)) => Ok(*t),
                 _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
             }
 
             // Function call (type of function, check that expression types and length match)
             Expr::FunctionCall(ident, args)
             => match search_stack(stack, ident) {
-                Ok(StackType::Function(t, _, params)) => {
+                Some(StackType::Function(t, _, params)) => {
                     let t = *t;
                     if params.len() != args.len() {
                         return Err(Error::NoContext(ErrorKind::InvalidArgumentCount {
@@ -357,8 +371,8 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                     }
                     Ok(t)
                 }
-                Ok(_) => Err(Error::NoContext(ErrorKind::NotAFunction)),
-                Err(_) => Err(Error::NoContext(ErrorKind::Undeclared {})),
+                Some(_) => Err(Error::NoContext(ErrorKind::NotAFunction)),
+                None => Err(Error::NoContext(ErrorKind::Undeclared {})),
             }
         }
     }
@@ -409,7 +423,7 @@ fn push_stack_def<'a>(stack: &mut Vec<StackElem>, elem: StackType) -> Result<(),
 }
 
 /// Searches a stack top to bottom (higher indexes first) for an element with specified identity
-fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackType, ()> {
+fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Option<&'a StackType> {
     stack.iter().rev()
         .filter_map(|it| match it {
             StackElem::Scope(_) => None,
@@ -417,7 +431,7 @@ fn search_stack<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Result<&'a StackT
         })
         .find(|it| match it {
             StackType::Function(_, id, _) | StackType::Variable(_, id) => id == ident,
-        }).ok_or(())
+        })
 }
 
 /// As 'search_stack' but limited to the current scope

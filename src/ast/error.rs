@@ -32,11 +32,22 @@ impl CompilerError for ASTError {
                 use pest::error::ErrorVariant;
                 match &e.variant {
                     ErrorVariant::CustomError { message } => {
-                        print_error(w, source_code, &message, sl, el)?;
+                        print_error(w, source_code, &message, sl-1, el-1)?;
                     }
                     ErrorVariant::ParsingError { positives, negatives } => {
-                        print_error(w, source_code,
-                                    &format!("Parse error at line {}, column {}.\n  Positives: {:?}\n  Negatives: {:?}", sl, sc, positives, negatives), sl, el)?;
+                        print_error(
+                            w,
+                            source_code,
+                            &format!(
+                                "Parse error at line {}, column {}.\n  Positives: {:?}\n  Negatives: {:?}",
+                                sl,
+                                sc,
+                                positives,
+                                negatives,
+                            ),
+                            sl-1,
+                            el-1,
+                        )?;
                     }
                 }
             }

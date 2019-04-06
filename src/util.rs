@@ -40,7 +40,7 @@ where W: Write {
     if lines.len() > 0 {
         write!(w, "     {}\n", "|".blue())?;
         for (i, l) in lines {
-            write!(w, "{} {} {}\n", format!("{:4}", i).blue(), "|".blue(), l)?;
+            write!(w, "{} {} {}\n", format!("{:4}", i+1).blue(), "|".blue(), l)?;
         }
         write!(w, "     {}\n", "|".blue())?;
     }

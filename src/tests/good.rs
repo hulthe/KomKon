@@ -2,7 +2,6 @@ use crate::ast::*;
 use crate::typecheck::type_check;
 use crate::returncheck::return_check;
 use crate::minimize::Minimize;
-use crate::voidcheck::void_check;
 
 macro_rules! test_good {
     ($file:ident) => {
@@ -16,7 +15,6 @@ macro_rules! test_good {
                 type_check(&p).expect("type_check failed");
                 p.minimize();
                 return_check(&p).expect("return_check failed");
-                void_check(&p).expect("void check failed");
             } else {
                 println!("{:#?}", p);
                 assert!(false, concat!(stringify!($file), ".jl failed to compile!"));

@@ -1,8 +1,7 @@
 use crate::ast::*;
 use crate::typecheck::type_check;
-use crate::returncheck::return_check;
 use crate::minimize::Minimize;
-use crate::voidcheck::void_check;
+use crate::returncheck::return_check;
 
 macro_rules! test_bad {
     ($file:ident) => {
@@ -13,19 +12,16 @@ macro_rules! test_bad {
             let p = Program::parse(source);
             match p {
                 Err(e) => {
-                println!("Success! Program rejected by grammar with the following error: {:?}", e);
+                    println!("Success! Program rejected by grammar with the following error: {:?}", e);
                 }
                 Ok(mut p) => {
                     if let Err(e) = type_check(&p) {
                         println!("Success! Program rejected by type checker with the following error: {:?}", e);
-                    } else if let Err(e) = return_check(&p){
-                        println!("Success! Program rejected by return checker with the following error: {:?}",e);
                     } else {
                         p.minimize();
-                        if let Err(e) = void_check(&p){
-                            println!("Success! Program rejected by void checker with the following error: {:?}",e)
-                        }
-                        else {
+                        if let Err(e) = return_check(&p){
+                            println!("Success! Program rejected by return checker with the following error: {:?}",e);
+                        } else {
                             assert!(false, concat!("Invalid program ", stringify!($file), ".jl compiled successfully."));
                         }
                     }
@@ -49,7 +45,7 @@ test_bad!(bad010);
 test_bad!(bad011);
 test_bad!(bad012);
 test_bad!(bad013);
-//test_bad!(bad014);
+test_bad!(bad014);
 test_bad!(bad015);
 test_bad!(bad016);
 test_bad!(bad017);
@@ -96,7 +92,7 @@ test_bad!(bad053);
 test_bad!(bad054);
 test_bad!(bad055);
 test_bad!(bad056);
-//test_bad!(bad057);
+test_bad!(bad057);
 test_bad!(bad058);
 test_bad!(bad059);
 
@@ -104,4 +100,6 @@ test_bad!(bad060);
 test_bad!(bad061);
 test_bad!(bad062);
 test_bad!(bad063);
+test_bad!(bad064);
+test_bad!(bad065);
 

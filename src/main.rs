@@ -12,7 +12,6 @@ pub mod ast;
 pub mod typecheck;
 pub mod returncheck;
 pub mod minimize;
-pub mod voidcheck;
 pub mod util;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
@@ -21,7 +20,6 @@ use crate::ast::Program;
 use crate::returncheck::return_check;
 use crate::typecheck::type_check;
 use crate::minimize::Minimize;
-use crate::voidcheck::void_check;
 use colored::*;
 
 /// A trait for objects which can display compilation error messages
@@ -47,9 +45,8 @@ where E: CompilerError {
 fn compile(source_code: &str) -> Result<(), ()> {
     let mut p = step(source_code, source_code, Program::parse)?;
     step(&p, source_code, type_check)?;
-    step(&p, source_code, return_check)?;
     p.minimize();
-    step(&p, source_code, void_check)?;
+    step(&p, source_code, return_check)?;
 
     Ok(())
 }
