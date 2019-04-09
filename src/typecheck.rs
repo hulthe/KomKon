@@ -88,7 +88,7 @@ impl Display for ErrorKind {
     }
 }
 
-pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
+pub fn type_check<'a>(prog: &'a mut Program<'a>) -> Result<(), Error<'a>> {
     use self::{StackType::*};
     let mut stack: Vec<StackElem> = vec![];
 
@@ -102,7 +102,7 @@ pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
         if td.elem.ident == "main" {
             if td.elem.return_type != Type::Integer ||
                 td.elem.args.len() != 0 {
-                return Err(Error::Context(td.get_slice(), ErrorKind::InvalidMainDef))
+                return Err(Error::Context(td.get_slice(), ErrorKind::InvalidMainDef));
             }
         }
         push_stack_def(&mut stack, Function(
@@ -114,7 +114,7 @@ pub fn type_check<'a>(prog: &'a Program) -> Result<(), Error<'a>> {
 
     search_stack(&stack, "main").ok_or(Error::NoContext(ErrorKind::MissingMain))?;
 
-    for td in &prog.0 {
+    for td in &mut prog.0 {
         td.elem.check(&mut stack, Type::Void)?;
     }
 
@@ -141,23 +141,29 @@ trait TypeCheckable<'a> {
     ///
     /// * `func_type` - The return type of the function being traversed
     ///
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>>;
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>>;
 }
 
 impl<'a, T> TypeCheckable<'a> for Node<'a, T>
     where T: TypeCheckable<'a> {
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         match self.elem.check(stack, func_type) {
             Err(Error::NoContext(e)) => {
                 Err(Error::Context(self.get_slice(), e))
             }
+
+            Ok(tp) => {
+                self.tp = Some(tp);
+                Ok(tp)
+            }
+
             r => r,
         }
     }
 }
 
 impl<'a> TypeCheckable<'a> for TopDef<'a> {
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {
             push_stack_def(stack, StackType::Variable(*type_, ident.clone()))?;
@@ -169,7 +175,7 @@ impl<'a> TypeCheckable<'a> for TopDef<'a> {
 }
 
 impl<'a> TypeCheckable<'a> for Blk<'a> {
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         stack.push(StackElem::Scope("Block"));
         for st in &self.0 {
             st.check(stack, func_type)?;
@@ -180,7 +186,7 @@ impl<'a> TypeCheckable<'a> for Blk<'a> {
 }
 
 impl<'a> TypeCheckable<'a> for Stmt<'a> {
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         match self {
             Stmt::Return(expr)
             => { assert_type(func_type, expr.check(stack, func_type)?)?; }
@@ -241,7 +247,7 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
 }
 
 impl<'a> TypeCheckable<'a> for Expr<'a> {
-    fn check(&'a self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&'a mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         match self {
             // bool -> bool -> bool
             Expr::LOr(lhs, rhs) |

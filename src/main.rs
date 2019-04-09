@@ -44,7 +44,7 @@ where E: CompilerError {
 
 fn compile(source_code: &str) -> Result<(), ()> {
     let mut p = step(source_code, source_code, Program::parse)?;
-    step(&p, source_code, type_check)?;
+    step(&mut p, source_code, type_check)?;
     p.minimize();
     step(&p, source_code, return_check)?;
 

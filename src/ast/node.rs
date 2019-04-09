@@ -1,11 +1,13 @@
 use pest::iterators::Pair;
 use crate::ast::{Rule, FromPair, ASTError};
+use crate::ast::jl_type::Type;
 
 /// This wraps AST-elements to include meta data
 #[derive(Debug, Clone)]
 pub struct Node<'a, T> {
     pub elem: Box<T>,
     slice: &'a str,
+    pub tp: Option<Type>,
 }
 
 impl<'a, T> FromPair<'a> for Node<'a, T>
@@ -14,6 +16,7 @@ impl<'a, T> FromPair<'a> for Node<'a, T>
         Ok(Node {
             slice: pair.as_str(),
             elem: box T::from_pair(pair)?,
+            tp: None,
         })
     }
 }
@@ -23,6 +26,7 @@ impl<'a, T> Node<'a, T> {
         Node {
             elem: box wrap,
             slice,
+            tp: None,
         }
     }
 
