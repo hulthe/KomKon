@@ -1,11 +1,16 @@
 use crate::ast::{Type, Program, TopDef, Blk, Stmt, Arg, DeclItem, Expr, Node};
 
 enum LLVMElem {
-    TopDef,
-    Label,
-    Jump,
-    Ret(),
+    TopDef(String, LLVMType, Vec<LLVMType>),
+    Label(String),
+    IfBranch(Expr, Label, Label),
+    Jump(Label),
+    Ret(LLVMType),
+    RetV,
+    Assign(String, LLVMExpr),
 }
+
+enum LLVMExpr {}
 
 enum LLVMType {
     I(u8),
@@ -42,9 +47,9 @@ impl ToLLVM for Program {
 }
 
 impl ToLLVM for Node<T> {
-    /// Retrieves the type annotations here1111111111111
+    /// Assigns the type information for the current context
     fn transform(&self, out: &mut Vec<LLVMElem>, tp: Type) {
-        self.elem.transform(&out, node.tp)
+        self.elem.transform(&out, self.tp)
     }
 }
 
@@ -59,20 +64,69 @@ impl ToLLVM for Blk {
 impl ToLLVM for Stmt {
     fn transform(&self, out: &mut Vec<LLVMElem>, tp: Type) {
         match self {
-            Stmt::Return(expr) => out.push(),
-            Stmt::ReturnVoid() => unimplemented!(),
-            Stmt::If(expr, block) => unimplemented!(),
-            Stmt::IfElse(expr, block1, block2) => unimplemented!(),
-            Stmt::While(expr, block) => unimplemented!(),
-            Stmt::Block(block) => unimplemented!(),
-            Stmt::Assignment(ident, stmt) => unimplemented!(),
+            Stmt::Return(expr) => out.push(Ret(type_to_llvm_type(tp))),
+            Stmt::ReturnVoid() => out.push(RetV),
+
+            Stmt::If(expr, block) => {
+                let expr = expr.transform(&out, tp);
+                let lab_if_true = Label(unimplemented!());
+                let lab_end_if = Label(unimplemented!());
+                out.push(IfBranch(expr, lab_if_true, lab_end_if));
+                out.push(lab_if_true);
+                block.transform(out, tp);
+                out.push(lab_end_if)
+            }
+
+            Stmt::IfElse(expr, block1, block2) => {
+                let expr = expr.transform(&out, tp);
+                let lab_if_true = Label(unimplemented!());
+                let lab_if_false = Label(unimplemented!());
+                let lab_end_if = Label(unimplemented!());
+                out.push(IfBranch(expr, lab_if_true, lab_if_false));
+                out.push(lab_if_true);
+                block1.tranform(out, tp);
+                out.push(lab_if_false);
+                block2.transform(out, tp);
+                out.push(lab_end_if);
+            }
+
+            Stmt::While(expr, block) => {
+                let expr = expr.transform(&out, tp);
+                let lab_if_true = Label(unimplemented!());
+                let lab_end_if = Label(unimplemented!());
+                out.push(IfBranch(expr, lab_if_true, lab_end_if));
+                out.push(lab_if_true);
+                block1.transform(out, tp);
+                out.push(IfBranch(expr, lab_if_true, lab_end_if));
+                out.push(lab_end_if);
+            }
+
+            Stmt::Block(block) => block.transform(out, tp),
+            Stmt::Assignment(ident, stmt) => {
+                expr.transform(out, tp);
+                out.push(Assign(unimplemented!(), unimplemented!()))
+            }
+
             Stmt::Increment(ident) => unimplemented!(),
+
             Stmt::Decrement(ident) => unimplemented!(),
-            Stmt::Expression(ident) => unimplemented!(),
+
+            Stmt::Expression(expr) => expr.transform(),
+
             Stmt::Declare(ident) => unimplemented!(),
-            Stmt::Empty => unimplemented!(),
+
+            Stmt::Empty => return,
             _ => panic!("cool beans")
         }
+    }
+}
+
+impl ToLLVM for Expr {
+    /// By convention, a  Expr should always push its
+    /// final calculated value onto the stack last, so
+    /// that consecutive operations can find it easily
+    fn transform(&self, out: &mut Vec<LLVMElem>, tp: Type) {
+        unimplemented!()
     }
 }
 
