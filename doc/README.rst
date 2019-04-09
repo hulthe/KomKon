@@ -47,5 +47,25 @@ See ``/src/grammar.pest`` for the formal syntax definition in the form of a
 `Parsing Expression Grammar`_. You can refer to the `Pest book`_ for the syntax specification
 (Pest is the library we use to generate the parser).
 
+PEG is inherently unambiguous due to being greedy, i.e. when faced with an ordered choice it
+will always attempt them in order, short circuiting if it succeeds. For this reason, a given
+string will always result in a single parse tree. For example, referring to our ``grammar.pest``,
+consider the following input: ::
+
+    if (true)
+        a++;
+    else
+        b++;
+        
+The PEG will match on exactly the rule ``( If ~ "(" ~ Expr ~ ")" ~ Stmt ~ Else ~ Stmt)`` and not
+``( If ~ "(" ~ Expr ~ ")" ~ Stmt)`` since the former is an earlier rule in the order, as shown below: ::
+
+    Stmt = {
+        ...
+        ( If ~ "(" ~ Expr ~ ")" ~ Stmt ~ Else ~ Stmt) |
+        ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
+        ...
+    }
+
 .. _Parsing Expression Grammar: https://en.wikipedia.org/wiki/Parsing_expression_grammar
 .. _Pest book: https://pest.rs/book/
