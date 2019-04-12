@@ -1,43 +1,31 @@
 use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr, DeclItem};
+use crate::util::NameGenerator;
+use crate::util::stack::{HasIdentifier, search_stack};
 
 #[cfg(test)]
 mod test;
-
-struct NameGenerator {
-    index: usize,
-}
-
-impl NameGenerator {
-    pub fn new() -> Self {
-        NameGenerator{index: 0}
-    }
-    pub fn generate(&mut self, stack: &mut Stack) -> String {
-        loop {
-            let s = format!("v{}", self.index);
-            self.index += 1;
-            if let None = search_stack(stack, &s) {
-                break s;
-            }
-        }
-    }
-}
 
 enum StackElem {
     Scope(&'static str),
     Mapping(String, String),
 }
 
+impl HasIdentifier for StackElem {
+    fn get_identifier(&self) -> Option<&str> {
+        match self {
+            StackElem::Mapping(ident, _) => Some(ident),
+            StackElem::Scope(_) => None,
+        }
+    }
+}
+
 type Stack = Vec<StackElem>;
 
-fn search_stack<'a>(stack: &'a Stack, s: &str) -> Option<&'a str> {
-    stack.iter()
-        .rev()
-        .filter_map(|e| match e {
-            StackElem::Mapping(from, to) => Some((from.as_ref(), to.as_ref())),
-            StackElem::Scope(_) => None
-        })
-        .find(|(from, _): &(&str, &str)| from == &s)
-        .map(|(_, to)| to)
+fn search_stack_mapping<'a>(stack: &'a Stack, s: &str) -> Option<&'a str> {
+    match search_stack(stack.iter().rev(), s) {
+        Some((_, StackElem::Mapping(from, to))) => Some(to),
+        _ => None,
+    }
 }
 
 /// Pops the stack to and including the latest scope
@@ -51,7 +39,7 @@ fn pop_scope(stack: &mut Stack) {
 }
 
 fn swap_name(old: &mut String, stack: &Stack) {
-    let mut new_name = search_stack(stack, old)
+    let mut new_name = search_stack_mapping(stack, old)
         .expect("Variables used before declaration")
         .to_owned();
     std::mem::swap(&mut new_name, old);
@@ -67,7 +55,7 @@ pub fn uniqueify(program: &mut Program) {
     }
 
     for td in program.0.iter_mut() {
-        let mut names = NameGenerator::new();
+        let mut names = NameGenerator::new("v");
         td.uniqueify(&mut names, &mut stack);
     }
 }

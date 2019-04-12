@@ -7,7 +7,7 @@ pub enum DeclItem<'a> {
     Init(String, Expr<'a>),
 }
 
-impl<'a> DeclItem<'a> {
+impl DeclItem<'_> {
     pub fn get_ident(&self) -> &str {
         match self {
             DeclItem::NoInit(ident) | DeclItem::Init(ident, _) => &ident

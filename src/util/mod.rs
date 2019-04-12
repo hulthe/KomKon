@@ -1,5 +1,9 @@
+pub mod stack;
+mod name_generator;
+
 use std::io::{self, Write};
 use colored::*;
+pub use name_generator::NameGenerator;
 
 pub fn get_internal_slice_pos(raw: &str, slice: &str) -> Option<(usize, usize)> {
     let other_s = raw.as_ptr() as usize;

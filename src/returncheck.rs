@@ -96,20 +96,20 @@ impl<'a> ReturnCheckable for Stmt<'a> {
 
                 // if constant expr, only evaluate corresponding branch
                 match expr {
-                    Expr::Boolean(true) => Ok(true_branch),
-                    Expr::Boolean(false) => Ok(false_branch),
+                    n!(Expr::Boolean(true)) => Ok(true_branch),
+                    n!(Expr::Boolean(false)) => Ok(false_branch),
                     _ => Ok(true_branch && false_branch)
                 }
             }
 
             Stmt::If(expr, stmt) => {
-                if let Expr::Boolean(true) = expr {
+                if let n!(Expr::Boolean(true)) = expr {
                     stmt.check()
                 } else { Ok(false) }
             }
 
             Stmt::While(expr, stmt) => {
-                if let Expr::Boolean(true) = expr {
+                if let n!(Expr::Boolean(true)) = expr {
                     stmt.check()
                 } else { Ok(false) }
             }

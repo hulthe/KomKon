@@ -163,14 +163,14 @@ impl<'a, T> TypeCheckable<'a> for Node<'a, T>
 }
 
 impl<'a> TypeCheckable<'a> for TopDef<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, _: Type) -> Result<Type, Error<'a>> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {
             push_stack_def(stack, StackType::Variable(*type_, ident.clone()))?;
         }
         self.body.check(stack, self.return_type)?;
         pop_scope(stack);
-        Ok(func_type)
+        Ok(self.return_type)
     }
 }
 
@@ -188,8 +188,10 @@ impl<'a> TypeCheckable<'a> for Blk<'a> {
 impl<'a> TypeCheckable<'a> for Stmt<'a> {
     fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
         match self {
-            Stmt::Return(expr)
-            => { assert_type(func_type, expr.check(stack, func_type)?)?; }
+            Stmt::Return(expr) => {
+                assert_type(func_type, expr.check(stack, func_type)?)?;
+                return Ok(func_type);
+            }
 
             Stmt::ReturnVoid
             => if func_type == Type::Void {} else {

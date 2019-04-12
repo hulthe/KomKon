@@ -15,7 +15,7 @@ macro_rules! test_bad {
                     println!("Success! Program rejected by grammar with the following error: {:?}", e);
                 }
                 Ok(mut p) => {
-                    if let Err(e) = type_check(&p) {
+                    if let Err(e) = type_check(&mut p) {
                         println!("Success! Program rejected by type checker with the following error: {:?}", e);
                     } else {
                         p.minimize();

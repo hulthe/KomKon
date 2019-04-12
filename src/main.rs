@@ -14,6 +14,7 @@ pub mod returncheck;
 pub mod minimize;
 pub mod uniqueifyer;
 pub mod util;
+pub mod backend;
 
 use clap::{clap_app, crate_version, crate_authors, crate_description};
 use std::io::{self, Read, Write, StderrLock};
@@ -22,6 +23,7 @@ use crate::returncheck::return_check;
 use crate::typecheck::type_check;
 use crate::minimize::Minimize;
 use crate::uniqueifyer::uniqueify;
+use crate::backend::to_llvm;
 use colored::*;
 
 /// A trait for objects which can display compilation error messages
@@ -50,6 +52,15 @@ fn compile(source_code: &str) -> Result<(), ()> {
     p.minimize();
     step(&p, source_code, return_check)?;
     uniqueify(&mut p);
+    let llvm = to_llvm(&p);
+
+    {
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
+    for l in llvm {
+            write!(handle, "{}", l).unwrap();
+        }
+    }
 
     Ok(())
 }

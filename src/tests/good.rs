@@ -12,7 +12,7 @@ macro_rules! test_good {
             let p = Program::parse(source);
             if let Ok(mut p) = p {
                 // All good!
-                type_check(&p).expect("type_check failed");
+                type_check(&mut p).expect("type_check failed");
                 p.minimize();
                 return_check(&p).expect("return_check failed");
             } else {
