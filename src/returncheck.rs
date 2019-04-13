@@ -53,21 +53,21 @@ trait ReturnCheckable {
     fn check(&self) -> Result<bool, Error>;
 }
 
-impl<'a> ReturnCheckable for TopDef<'a> {
+impl ReturnCheckable for TopDef<'_> {
     /// A function is returning iff its block is returning
     fn check(&self) -> Result<bool, Error> {
         self.body.check()
     }
 }
 
-impl<'a, T> ReturnCheckable for Node<'a, T>
+impl<T> ReturnCheckable for Node<'_, T>
     where T: ReturnCheckable {
     fn check(&self) -> Result<bool, Error> {
         self.elem.check()
     }
 }
 
-impl<'a> ReturnCheckable for Blk<'a> {
+impl ReturnCheckable for Blk<'_> {
     /// A block is returning iff a statement within the block is returning
     fn check(&self) -> Result<bool, Error> {
         for st in &self.0 {
@@ -80,7 +80,7 @@ impl<'a> ReturnCheckable for Blk<'a> {
     }
 }
 
-impl<'a> ReturnCheckable for Stmt<'a> {
+impl ReturnCheckable for Stmt<'_> {
     /// A statement is returning iff it is a Return-statement or
     /// it is a conditional with a constant expression which results
     /// in a returning block to always be evaluated, or if all branches

@@ -6,26 +6,26 @@ pub trait Minimize {
     fn minimize(&mut self);
 }
 
-impl<'a> Minimize for Program<'a> {
+impl Minimize for Program<'_> {
     fn minimize(&mut self) {
         self.0.iter_mut().for_each(Minimize::minimize);
     }
 }
 
-impl<'a, T> Minimize for Node<'a, T>
+impl<T> Minimize for Node<'_, T>
 where T: Minimize {
     fn minimize(&mut self) {
         self.elem.minimize()
     }
 }
 
-impl<'a> Minimize for TopDef<'a> {
+impl Minimize for TopDef<'_> {
     fn minimize(&mut self) {
         self.body.minimize()
     }
 }
 
-impl<'a> Minimize for Stmt<'a> {
+impl Minimize for Stmt<'_> {
     fn minimize(&mut self) {
         match self {
             Stmt::Expression(expr) |
@@ -53,7 +53,7 @@ impl<'a> Minimize for Stmt<'a> {
     }
 }
 
-impl<'a> Minimize for Blk<'a> {
+impl Minimize for Blk<'_> {
     fn minimize(&mut self) {
         for stmt in &mut self.0 {
             stmt.minimize();
@@ -61,7 +61,7 @@ impl<'a> Minimize for Blk<'a> {
     }
 }
 
-impl<'a> Minimize for DeclItem<'a> {
+impl Minimize for DeclItem<'_> {
     fn minimize(&mut self) {
         if let DeclItem::Init(_, expr) = self {
             expr.minimize();
@@ -74,7 +74,7 @@ macro_rules! n {
     ($n:pat) => {Node{ elem: box $n, ..}}
 }
 
-impl<'a> Minimize for Expr<'a> {
+impl Minimize for Expr<'_> {
     fn minimize(&mut self) {
         use self::Expr::*;
         match self {

@@ -64,14 +64,14 @@ trait Uniqueify {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack);
 }
 
-impl<'a, T> Uniqueify for Node<'a, T>
+impl<T> Uniqueify for Node<'_, T>
 where T: Uniqueify {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         self.elem.uniqueify(names, stack)
     }
 }
 
-impl<'a> Uniqueify for TopDef<'a> {
+impl Uniqueify for TopDef<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         stack.push(StackElem::Scope("Function"));
         for a in self.args.iter_mut() {
@@ -85,13 +85,13 @@ impl<'a> Uniqueify for TopDef<'a> {
     }
 }
 
-impl<'a> Uniqueify for Blk<'a> {
+impl Uniqueify for Blk<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         self.0.iter_mut().for_each(|s| s.uniqueify(names, stack))
     }
 }
 
-impl<'a> Uniqueify for Stmt<'a> {
+impl Uniqueify for Stmt<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         match self {
             Stmt::Return(expr) |
@@ -145,7 +145,7 @@ impl<'a> Uniqueify for Stmt<'a> {
     }
 }
 
-impl<'a> Uniqueify for Expr<'a> {
+impl Uniqueify for Expr<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         match self {
             Expr::Ident(ident) => swap_name(ident, stack),

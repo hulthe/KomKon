@@ -31,7 +31,7 @@ pub enum Error<'a> {
     NoContext(ErrorKind),
 }
 
-impl<'a> CompilerError for Error<'a> {
+impl CompilerError for Error<'_> {
     fn display(&self, w: &mut StderrLock, source_code: &str) -> io::Result<()> {
         let kind = match self {
             Error::NoContext(kind) => kind,
@@ -459,7 +459,7 @@ fn search_stack_scope<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Option<&'a 
 }
 
 
-fn assert_type<'a>(expected: Type, got: Type) -> Result<Type, Error<'a>> {
+fn assert_type(expected: Type, got: Type) -> Result<Type, Error<'static>> {
     if expected == got {
         Ok(got)
     } else {
