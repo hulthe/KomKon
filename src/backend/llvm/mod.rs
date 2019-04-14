@@ -74,6 +74,9 @@ pub enum LLVMExpr {
     Sub(LLVMType, LLVMVal, LLVMVal),
     Mul(LLVMType, LLVMVal, LLVMVal),
     Div(LLVMType, LLVMVal, LLVMVal),
+    Mod(LLVMType, LLVMVal, LLVMVal),
+
+    Neg(LLVMType, LLVMVal),
 
     /// Function call
     Call(LLVMType, String, Vec<(LLVMType, LLVMVal)>),
@@ -220,6 +223,30 @@ impl Display for LLVMExpr {
                     panic!("Attempting to div two values of type {}.", t);
                 }
             }
+            Mod(t, i1, i2) => {
+                if t.is_integer_type() {
+                    // NOTE: srem is specifically for signed integers
+                    write!(f, "srem {} {}, {}", t, i1, i2)
+                } else if t.is_float_type() {
+                    write!(f, "frem {} {}, {}", t, i1, i2)
+                } else {
+                    panic!("Attempting to rem two values of type {}.", t);
+                }
+            }
+            Neg(t, i) => {
+                match t {
+                    LLVMType::I(1) => {
+                        write!(f, "xor i1 1, {}", i)
+                    }
+                    &LLVMType::I(_) => {
+                        write!(f, "sub {} 0, {}", t, i)
+                    }
+                    LLVMType::F(_) => {
+                        write!(f, "fsub {} 0.0, {}", t, i)
+                    }
+                    _ => unimplemented!(),
+                }
+            }
             Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
             CmpI(ord, t, v1, v2) => write!(f, "icmp {} {} {}, {}", ord, t, v1, v2),
         }
@@ -240,7 +267,7 @@ impl From<i32> for LLVMVal {
 
 impl From<f64> for LLVMVal {
     fn from(f: f64) -> LLVMVal {
-        LLVMVal::Const(f.to_string())
+        LLVMVal::Const(format!("{:?}", f))
     }
 }
 

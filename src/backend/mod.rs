@@ -15,7 +15,28 @@ pub fn to_llvm(prog: &Program) -> Vec<LLVMElem> {
 
     let mut names = NameGenerator::new("t");
     prog.transform(&mut out, &mut names, Type::Void);
-    out
+    clean_llvm(out)
+}
+
+fn clean_llvm(ir: Vec<LLVMElem>) -> Vec<LLVMElem> {
+    let mut unreachable = false;
+    ir.into_iter()
+        .filter(|elem| match elem {
+            LLVMElem::Jump(_) |
+            LLVMElem::RetV |
+            LLVMElem::Ret(_, _) if !unreachable => {
+                unreachable = true;
+                true
+            }
+
+            LLVMElem::EndTopDef |
+            LLVMElem::Label(_) => {
+                unreachable = false;
+                true
+            }
+            _ => !unreachable,
+        })
+        .collect()
 }
 
 trait ToLLVM {
@@ -71,6 +92,10 @@ impl ToLLVM for TopDef<'_> {
             out.push(LLVMElem::Empty);
         }
 
+        if tp == Type::Void {
+            out.push(LLVMElem::RetV);
+        }
+
         out.push(LLVMElem::EndTopDef);
         None
     }
@@ -87,8 +112,13 @@ where T: ToLLVM {
 
 impl ToLLVM for Blk<'_> {
     fn transform(&self, out: &mut Vec<LLVMElem>, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
-        for node in &self.0 {
+        let mut nodes =  self.0.iter();
+        if let Some(node) = nodes.next() {
             node.transform(out, names, tp);
+            for node in nodes {
+                out.push(LLVMElem::Empty);
+                node.transform(out, names, tp);
+            }
         }
         None
     }
@@ -96,8 +126,6 @@ impl ToLLVM for Blk<'_> {
 
 impl ToLLVM for Stmt<'_> {
     fn transform(&self, out: &mut Vec<LLVMElem>, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
-        use LLVMElem::*;
-        use LLVMExpr::*;
         match self {
             Stmt::Return(expr) => {
                 let val = expr.transform(out, names, tp);
@@ -145,25 +173,32 @@ impl ToLLVM for Stmt<'_> {
             }
 
             Stmt::While(expr, block) => {
-                let lab_entry = names.generate(out);
-                let lab_body = names.generate(out);
-                let lab_exit = names.generate(out);
+                if let box Expr::Boolean(true) = expr.elem {
+                    let lab_loop = names.generate(out);
+                    out.push(LLVMElem::Jump(lab_loop.clone()));
+                    out.push(LLVMElem::Label(lab_loop.clone()));
+                    block.transform(out, names, tp);
+                    out.push(LLVMElem::Jump(lab_loop));
+                } else {
+                    let lab_entry = names.generate(out);
+                    let lab_body = names.generate(out);
+                    let lab_exit = names.generate(out);
 
+                    out.push(LLVMElem::Jump(lab_entry.clone()));
+                    out.push(LLVMElem::Label(lab_entry.clone()));
+                    let expr = expr.transform(out, names, tp).unwrap();
+                    out.push(LLVMElem::Branch{
+                        cond: expr.clone(),
+                        if_true: lab_body.clone(),
+                        if_false: lab_exit.clone(),
+                    });
 
-                out.push(LLVMElem::Jump(lab_entry.clone()));
-                out.push(LLVMElem::Label(lab_entry.clone()));
-                let expr = expr.transform(out, names, tp).unwrap();
-                out.push(LLVMElem::Branch{
-                    cond: expr.clone(),
-                    if_true: lab_body.clone(),
-                    if_false: lab_exit.clone(),
-                });
+                    out.push(LLVMElem::Label(lab_body.clone()));
+                    block.transform(out, names, tp);
+                    out.push(LLVMElem::Jump(lab_entry.clone()));
 
-                out.push(LLVMElem::Label(lab_body.clone()));
-                block.transform(out, names, tp);
-                out.push(LLVMElem::Jump(lab_entry.clone()));
-
-                out.push(LLVMElem::Label(lab_exit));
+                    out.push(LLVMElem::Label(lab_exit));
+                }
             }
 
             Stmt::Block(block) => {
@@ -172,7 +207,7 @@ impl ToLLVM for Stmt<'_> {
             Stmt::Assignment(ident, expr) => {
                 let tp = expr.tp.unwrap();
                 let val = expr.transform(out, names, tp).unwrap();
-                out.push(Store{
+                out.push(LLVMElem::Store{
                     val_t: tp.into(),
                     val,
                     into_t: LLVMType::Ptr(box tp.into()),
@@ -193,8 +228,8 @@ impl ToLLVM for Stmt<'_> {
                     let ident = item.get_ident();
                     let val = item.transform(out, names, *t).unwrap();
                     let t: LLVMType = (*t).into();
-                    out.push(Assign(ident.to_owned(), AllocA(t.clone())));
-                    out.push(Store{
+                    out.push(LLVMElem::Assign(ident.to_owned(), LLVMExpr::AllocA(t.clone())));
+                    out.push(LLVMElem::Store{
                         val_t: t.clone(),
                         val,
                         into_t: LLVMType::Ptr(box t),
@@ -257,11 +292,23 @@ impl ToLLVM for Expr<'_> {
             Expr::NE(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::CmpI(LLVMIOrd::NE, tp, v1, v2)),
             Expr::Mul(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Mul(tp, v1, v2)),
             Expr::Div(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Div(tp, v1, v2)),
-            Expr::Mod(_e1, _e2) => unimplemented!(),
+            Expr::Mod(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Mod(tp, v1, v2)),
             Expr::Add(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Add(tp, v1, v2)),
             Expr::Sub(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Sub(tp, v1, v2)),
-            Expr::Neg(expr) => unimplemented!(),
-            Expr::Not(expr) => unimplemented!(),
+            Expr::Neg(expr) |
+            Expr::Not(expr) => {
+                let tp = expr.tp.unwrap();
+                let v = expr.transform(out, names, tp).unwrap();
+                let i = names.generate(out);
+                match tp.into() {
+                    LLVMType::F(_) |
+                    LLVMType::I(_) => {
+                        out.push(LLVMElem::Assign(i.clone(), LLVMExpr::Neg(tp.into(), v)));
+                        Some(i.into())
+                    }
+                    tp => unimplemented!("Not/Neg not implemented for {}", tp),
+                }
+            }
             &Expr::Double(f) => Some(f.into()),
             &Expr::Integer(i) => Some(i.into()),
             &Expr::Boolean(b) => Some(b.into()),
@@ -277,7 +324,7 @@ impl ToLLVM for Expr<'_> {
                 ));
                 Some(i.into())
             },
-            Expr::Str(s) => unimplemented!(),
+            Expr::Str(_s) => unimplemented!(),
             Expr::FunctionCall(ident, args) => {
                 let args = args.iter()
                     .map(|expr| (expr.tp.unwrap().into(), expr.transform(out, names, tp).unwrap()))

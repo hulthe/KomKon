@@ -31,15 +31,37 @@ impl Minimize for Stmt<'_> {
             Stmt::Expression(expr) |
             Stmt::Assignment(_, expr) |
             Stmt::Return(expr) => expr.minimize(),
-            Stmt::While(expr, body) |
+            Stmt::While(expr, body) => {
+                expr.minimize();
+                body.minimize();
+            }
             Stmt::If(expr, body) => {
                 expr.minimize();
                 body.minimize();
+                if let box Expr::Boolean(true) = expr.elem {
+                    let mut new_stmt = Stmt::Empty;
+                    std::mem::swap(&mut new_stmt, body.elem.as_mut());
+                    std::mem::swap(&mut new_stmt, self);
+                }
             }
             Stmt::IfElse(expr, body1, body2) => {
                 expr.minimize();
                 body1.minimize();
                 body2.minimize();
+
+                match expr.elem {
+                    box Expr::Boolean(true) => {
+                        let mut new_stmt = Stmt::Empty;
+                        std::mem::swap(&mut new_stmt, body1.elem.as_mut());
+                        std::mem::swap(&mut new_stmt, self);
+                    }
+                    box Expr::Boolean(false) => {
+                        let mut new_stmt = Stmt::Empty;
+                        std::mem::swap(&mut new_stmt, body2.elem.as_mut());
+                        std::mem::swap(&mut new_stmt, self);
+                    }
+                    _ => {}
+                }
             }
             Stmt::Block(block) => block.minimize(),
 

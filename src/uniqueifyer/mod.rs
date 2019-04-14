@@ -23,7 +23,7 @@ type Stack = Vec<StackElem>;
 
 fn search_stack_mapping<'a>(stack: &'a Stack, s: &str) -> Option<&'a str> {
     match search_stack(stack.iter().rev(), s) {
-        Some((_, StackElem::Mapping(from, to))) => Some(to),
+        Some((_, StackElem::Mapping(_from, to))) => Some(to),
         _ => None,
     }
 }
