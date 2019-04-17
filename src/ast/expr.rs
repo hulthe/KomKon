@@ -89,7 +89,35 @@ impl<'a> Expr<'a> {
 
             [(Rule::Boolean, boop)] => Expr::Boolean(boop.as_str().parse().unwrap()),
 
-            [(Rule::String, strp)] => Expr::Str(strp.as_str().to_owned()),
+            [(Rule::String, strp)] => {
+                let s = strp.as_str();
+                let l = s.len()-2;
+                let mut s: String = String::with_capacity(l);
+                let mut escaped: bool = false;
+                for c in strp.as_str()
+                    .chars()
+                    .skip(1)  // Skip starting "
+                    .take(l) {// Skip ending "
+                    if escaped {
+                        s.push(match c {
+                            'n' => '\n',
+                            't' => '\t',
+                            '\\' => '\\',
+                            '"' => '"',
+                            c => return Err(ASTError::InvalidEscapeSequence(c)),
+                        });
+                        escaped = false;
+                    } else {
+                        if c == '\\' {
+                            escaped = true;
+                        } else {
+                            s.push(c)
+                        }
+                    }
+                }
+
+                Expr::Str(s)
+            }
 
             [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
             => Expr::from_pair(expp.clone())?,

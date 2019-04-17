@@ -15,6 +15,9 @@ pub enum ASTError {
     /// The pest-generated token tree could not be parsed as a typed AST.
     /// This is an error in the compiler
     GrammarError(String),
+
+    /// A string literal contained an invalid escape sequence.
+    InvalidEscapeSequence(char),
 }
 
 impl CompilerError for ASTError {
@@ -50,6 +53,9 @@ impl CompilerError for ASTError {
                         )?;
                     }
                 }
+            }
+            ASTError::InvalidEscapeSequence(c) => {
+                write!(w, "{} \\{}\n", "Invalid escape sequence:".red(), c)?;
             }
         }
         Ok(())

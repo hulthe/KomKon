@@ -12,12 +12,15 @@ impl NameGenerator {
             prefix,
         }
     }
-    pub fn generate<T>(&mut self, stack: &Vec<T>) -> String
-    where T: HasIdentifier {
+
+    pub fn generate<'a, I, T>(&mut self, stack: I) -> String
+    where I: Clone + DoubleEndedIterator<Item=&'a T>,
+          T: 'a + HasIdentifier, {
         loop {
+            let stack = stack.clone();
             let s = format!("{}{}", self.prefix, self.index);
             self.index += 1;
-            if let None = search_stack(stack.iter().rev(), &s) {
+            if let None = search_stack(stack.rev(), &s) {
                 break s;
             }
         }

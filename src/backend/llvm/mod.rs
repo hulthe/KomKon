@@ -2,6 +2,24 @@
 use crate::ast::Type;
 use crate::util::stack::HasIdentifier;
 use std::fmt::{self, Display, Formatter};
+use std::io::{self, Write};
+
+pub struct LLVM {
+    lines: Vec<LLVMElem>,
+}
+
+impl LLVM {
+    pub fn write<W: Write>(&self, w: &mut W) -> io::Result<()> {
+        for l in &self.lines {
+            write!(w, "{}", l)?;
+        }
+        Ok(())
+    }
+
+    pub fn push(&mut self, elem: LLVMElem) {
+        self.lines.push(elem);
+    }
+}
 
 /// This is the top-level structure for LLVM ops.
 /// A list of these could constitute a valid LLVM IR.
@@ -15,6 +33,8 @@ pub enum LLVMElem {
 
     /// This simply represents `}`
     EndTopDef,
+
+    InternalConst(String, LLVMType, LLVMVal),
 
     /// Example: `entry:'
     Label(String),
@@ -57,6 +77,10 @@ pub enum LLVMVal {
     /// A string mapping to some valid LLVM IR constant
     /// I.E. `Const("42.0")` will be rendered as `42.0`.
     Const(String),
+
+    /// A string constant. Will be escaped when rendered.
+    /// I.E: `String("Hello!") will be rendered as `c"Hello!\00"`
+    Str(String),
 }
 
 #[derive(Debug)]
@@ -67,8 +91,15 @@ pub enum LLVMExpr {
     /// Load a value from an address
     Load(LLVMType, LLVMType, String),
 
+    GetElementPtr(LLVMType, String, Vec<(LLVMType, LLVMVal)>),
+
     /// Compare two integers.
     CmpI(LLVMIOrd, LLVMType, LLVMVal, LLVMVal),
+
+    /// Compare two floating point numbers.
+    CmpF(LLVMFOrd, LLVMType, LLVMVal, LLVMVal),
+
+    Phi(LLVMType, Vec<(LLVMVal, String)>),
 
     Add(LLVMType, LLVMVal, LLVMVal),
     Sub(LLVMType, LLVMVal, LLVMVal),
@@ -92,7 +123,7 @@ pub enum LLVMType {
 }
 
 /// This enum defines the various ways in which two integers can be compared.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum LLVMIOrd {
     EQ, //equal
     NE, //not equal
@@ -104,6 +135,24 @@ pub enum LLVMIOrd {
     SGE, //signed greater or equal
     SLT, //signed less than
     SLE, //signed less or equal
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum LLVMFOrd {
+    OEQ, //ordered and equal
+    OGT, //ordered and greater than
+    OGE, //ordered and greater than or equal
+    OLT, //ordered and less than
+    OLE, //ordered and less than or equal
+    ONE, //ordered and not equal
+    ORD, //ordered (no nans)
+    UEQ, //unordered or equal
+    UGT, //unordered or greater than
+    UGE, //unordered or greater than or equal
+    ULT, //unordered or less than
+    ULE, //unordered or less than or equal
+    UNE, //unordered or not equal
+    UNO, //unordered (either nans)
 }
 
 // write a list with a non-trailing separator.
@@ -142,6 +191,9 @@ impl Display for LLVMElem {
 
             EndTopDef => write!(f, "}}\n"),
 
+            InternalConst(ident, tp, value)
+                => write!(f, "@{} = internal constant {} {}\n", ident, tp, value),
+
             Label(label) => write!(f, "{}:", label),
 
             Jump(label) => write!(f, "\tbr label %{}\n", label),
@@ -168,6 +220,9 @@ impl Display for LLVMElem {
 impl HasIdentifier for LLVMElem {
     fn get_identifier(&self) -> Option<&str> {
         match self {
+            LLVMElem::TopDef(ident, _ ,_) |
+            LLVMElem::ExtDef(ident, _ ,_) |
+            LLVMElem::InternalConst(ident, _ ,_) |
             LLVMElem::Label(ident) |
             LLVMElem::Assign(ident, _) => Some(ident),
             _ => None,
@@ -180,11 +235,20 @@ impl Display for LLVMExpr {
         use LLVMExpr::*;
         match self {
             AllocA(tp) => write!(f, "alloca {}", tp),
-            Call(tp, ident, args) => {
-                write!(f, "call {} @{}(", tp, ident)?;
-                write_list(f, ", ", args.iter(),
-                    |f, (arg_t, arg_i)| write!(f, "{} {}", arg_t, arg_i))?;
-                write!(f, ")")
+            Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
+            GetElementPtr(ptr_type, ptr, indices) => {
+                write!(f, "getelementptr {0}, {0}* @{1}", ptr_type, ptr)?;
+                for (t, v) in indices {
+                    write!(f, ", {} {}", t, v)?;
+                }
+                Ok(())
+            }
+            CmpI(ord, t, v1, v2) => write!(f, "icmp {} {} {}, {}", ord, t, v1, v2),
+            CmpF(ord, t, v1, v2) => write!(f, "fcmp {} {} {}, {}", ord, t, v1, v2),
+            Phi(tp, vals) => {
+                write!(f, "phi {}", tp)?;
+                write_list(f, ", ", vals.iter(),
+                    |f, (val, label)| write!(f, "[ {}, %{} ]", val, label))
             }
             Add(t, i1, i2) => {
                 if t.is_integer_type() {
@@ -247,8 +311,12 @@ impl Display for LLVMExpr {
                     _ => unimplemented!(),
                 }
             }
-            Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
-            CmpI(ord, t, v1, v2) => write!(f, "icmp {} {} {}, {}", ord, t, v1, v2),
+            Call(tp, ident, args) => {
+                write!(f, "call {} @{}(", tp, ident)?;
+                write_list(f, ", ", args.iter(),
+                    |f, (arg_t, arg_i)| write!(f, "{} {}", arg_t, arg_i))?;
+                write!(f, ")")
+            }
         }
     }
 }
@@ -288,11 +356,28 @@ impl Display for LLVMVal {
         match self {
             LLVMVal::Ident(ident) => write!(f, "%{}", ident),
             LLVMVal::Const(s) => write!(f, "{}", s),
+            LLVMVal::Str(s) => {
+                write!(f, "c\"")?;
+                for c in s.chars() {
+                    match c {
+                        '\n' | '\t' | '\r' | '\\' | '"' => { write!(f, "\\{:02X}", c as u8)?; }
+                        c if c.is_ascii() => { write!(f, "{}", c)?; }
+                        c => { write!(f, "{}", c)?; } // TODO: Does unicode work????
+                    }
+                }
+                write!(f, "\\00\"")
+            },
         }
     }
 }
 
 impl Display for LLVMIOrd {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+impl Display for LLVMFOrd {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", format!("{:?}", self).to_lowercase())
     }

@@ -75,7 +75,7 @@ impl Uniqueify for TopDef<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         stack.push(StackElem::Scope("Function"));
         for a in self.args.iter_mut() {
-            let mut new_name = names.generate(stack);
+            let mut new_name = names.generate(stack.iter());
             let m = StackElem::Mapping(a.1.clone(), new_name.clone());
             stack.push(m);
             std::mem::swap(&mut a.1, &mut new_name);
@@ -87,7 +87,9 @@ impl Uniqueify for TopDef<'_> {
 
 impl Uniqueify for Blk<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
-        self.0.iter_mut().for_each(|s| s.uniqueify(names, stack))
+        stack.push(StackElem::Scope("Block"));
+        self.0.iter_mut().for_each(|s| s.uniqueify(names, stack));
+        pop_scope(stack);
     }
 }
 
@@ -132,7 +134,7 @@ impl Uniqueify for Stmt<'_> {
                     .for_each(|item| match item {
                         DeclItem::NoInit(ident) |
                         DeclItem::Init(ident, _) => {
-                            let mut new_name = names.generate(stack);
+                            let mut new_name = names.generate(stack.iter());
                             stack.push(StackElem::Mapping(ident.to_owned(), new_name.clone()));
                             std::mem::swap(&mut new_name, ident);
                         }
