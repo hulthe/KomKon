@@ -29,7 +29,7 @@ fn minimize() {
                     ),
                 ])),
                 n!(Stmt::Return(
-                    Expr::Ident("a".into())
+                    n!(Expr::Ident("a".into()))
                 )),
             ])),
         }),

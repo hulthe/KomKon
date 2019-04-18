@@ -2,6 +2,7 @@ pub mod stack;
 mod name_generator;
 
 use std::io::{self, Write};
+use std::fmt::{self, Formatter};
 use colored::*;
 pub use name_generator::NameGenerator;
 
@@ -51,3 +52,20 @@ where W: Write {
 
     Ok(())
 }
+
+// write a list with a non-trailing separator.
+pub fn write_list<F, I, D>(f: &mut Formatter, separator: &str, iter: I, disp: F) -> fmt::Result
+where F: Fn(&mut Formatter, D) -> fmt::Result,
+      I: Iterator<Item=D>,
+{
+    let mut fst = true;
+    for item in iter {
+        if !fst {
+            write!(f, "{}", separator)?;
+        }
+        fst = false;
+        disp(f, item)?;
+    }
+    Ok(())
+}
+
