@@ -2,7 +2,9 @@ use crate::ast::{JavaletteParser, Rule, FromPair, Node, TopDef, ASTError};
 use pest::Parser;
 
 #[derive(Debug)]
-pub struct Program<'a>(pub Vec<Node<'a, TopDef<'a>>>);
+pub struct Program<'a> {
+    pub top_defs: Vec<Node<'a, TopDef<'a>>>,
+}
 
 impl<'a> Program<'a> {
     pub fn parse(raw: &'a str) -> Result<Self, ASTError> {
@@ -13,7 +15,9 @@ impl<'a> Program<'a> {
             .map(|pair| (pair.as_str(), TopDef::from_pair(pair)))
             .map(|(s, r)| r.map(|t| Node::new(t, s)))
             .collect::<Result<Vec<_>, ASTError>>()?;
-        Ok(Program(top_defs))
+        Ok(Program {
+            top_defs,
+        })
     }
 }
 

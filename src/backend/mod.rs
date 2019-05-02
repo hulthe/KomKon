@@ -201,7 +201,7 @@ trait ToLLVM {
 
 impl ToLLVM for Program<'_> {
     fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, _: Type) -> Option<LLVMVal> {
-        for node in &self.0 {
+        for node in &self.top_defs {
             node.transform(out, names, node.elem.return_type);
         }
         None

@@ -49,12 +49,12 @@ pub fn uniqueify(program: &mut Program) {
     let mut stack = vec![];
 
     stack.push(StackElem::Scope("Global"));
-    for td in program.0.iter() {
+    for td in program.top_defs.iter() {
         // Make sure no auto-generated names conflict with the existing top-def identifiers
         stack.push(StackElem::Mapping(td.elem.ident.clone(), td.elem.ident.clone()));
     }
 
-    for td in program.0.iter_mut() {
+    for td in program.top_defs.iter_mut() {
         let mut names = NameGenerator::new("v");
         td.uniqueify(&mut names, &mut stack);
     }

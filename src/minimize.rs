@@ -8,7 +8,7 @@ pub trait Minimize {
 
 impl Minimize for Program<'_> {
     fn minimize(&mut self) {
-        self.0.iter_mut().for_each(Minimize::minimize);
+        self.top_defs.iter_mut().for_each(Minimize::minimize);
     }
 }
 

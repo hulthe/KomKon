@@ -98,7 +98,7 @@ pub fn type_check<'a>(prog: &mut Program<'a>) -> Result<(), Error<'a>> {
     stack.push(StackElem::Type(Function(Type::Integer, "readInt".into(), vec![])));
     stack.push(StackElem::Type(Function(Type::Double, "readDouble".into(), vec![])));
 
-    for td in &prog.0 {
+    for td in &prog.top_defs {
         if td.elem.ident == "main" {
             if td.elem.return_type != Type::Integer ||
                 td.elem.args.len() != 0 {
@@ -114,7 +114,7 @@ pub fn type_check<'a>(prog: &mut Program<'a>) -> Result<(), Error<'a>> {
 
     search_stack(&stack, "main").ok_or(Error::NoContext(ErrorKind::MissingMain))?;
 
-    for td in &mut prog.0 {
+    for td in &mut prog.top_defs {
         td.elem.check(&mut stack, Type::Void)?;
     }
 
