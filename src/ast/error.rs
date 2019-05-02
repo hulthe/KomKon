@@ -18,6 +18,9 @@ pub enum ASTError {
 
     /// A string literal contained an invalid escape sequence.
     InvalidEscapeSequence(char),
+
+    // TODO: Remove this error when custom types are implemented
+    NonExistentType(String),
 }
 
 impl CompilerError for ASTError {
@@ -56,6 +59,9 @@ impl CompilerError for ASTError {
             }
             ASTError::InvalidEscapeSequence(c) => {
                 write!(w, "{} \\{}\n", "Invalid escape sequence:".red(), c)?;
+            }
+            ASTError::NonExistentType(t) => {
+                write!(w, "{} {}\n", "Not a valid type:".bright_red(), t)?;
             }
         }
         Ok(())

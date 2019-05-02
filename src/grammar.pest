@@ -48,14 +48,22 @@ Char = {
 }
 String = @{ "\"" ~ Char* ~ "\"" }
 
-Type = { "int" | "double" | "boolean" | "void" }
-FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
-NonIdent = _{Type | Boolean | Return | If | Else | While}
+Primitive = { "int" | "double" | "boolean" | "void" }
+
+NonType = _{Boolean | Return | If | Else | While}
+NonIdent = _{Primitive | NonType}
+
 Ident = @{
     (NonIdent ~ (Digit | Alpha)+) |
     (!NonIdent ~ Alpha ~ (Digit | Alpha)*)
 }
+
+Type = @{
+    (NonType ~ (Digit | Alpha)+) |
+    (!NonType ~ Alpha ~ (Digit | Alpha)*)
+}
+FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
@@ -102,3 +110,4 @@ Arg = { Type ~ Ident }
 TopDef = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
 
 Program = { SOI ~ TopDef+ ~ EOI}
+

@@ -18,7 +18,7 @@ impl<'a> FromPair<'a> for Type {
             "double" => Ok(Type::Double),
             "boolean" => Ok(Type::Boolean),
             "void" => Ok(Type::Void),
-            t => Err(format!("\"{}\" is not a valid Type", t))?,
+            t => Err(ASTError::NonExistentType(t.to_owned())),
         }
     }
 }
