@@ -1,4 +1,4 @@
-use crate::ast::{Program, Node, TopDef, Blk, Type, Stmt, Expr};
+use crate::ast::{Program, Node, Function, Blk, Type, Stmt, Expr};
 use std::io::{self, Write, StderrLock};
 use colored::*;
 use crate::CompilerError;
@@ -35,8 +35,8 @@ macro_rules! n {
 ///
 /// Assumes simplified constants, e.g. 1==1 should have been replaced with true
 pub fn return_check(prog: &Program) -> Result<bool, Error> {
-    for td in &prog.top_defs {
-        if let n!(TopDef { return_type: Type::Void, ident: _, args: _, body: _ }) = td {
+    for td in &prog.functions {
+        if let n!(Function { return_type: Type::Void, ident: _, args: _, body: _ }) = td {
             td.check()?;    // will error on unreachable statement
         } else {
             if !td.check()? {
@@ -53,7 +53,7 @@ trait ReturnCheckable {
     fn check(&self) -> Result<bool, Error>;
 }
 
-impl ReturnCheckable for TopDef<'_> {
+impl ReturnCheckable for Function<'_> {
     /// A function is returning iff its block is returning
     fn check(&self) -> Result<bool, Error> {
         self.body.check()

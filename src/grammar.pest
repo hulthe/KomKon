@@ -30,6 +30,9 @@ Assign = { "=" }
 
 LPar = { "(" }
 RPar = { ")" }
+RCurl = { "}" }
+LCurl = { "{" }
+Semi = { ";" }
 
 //AddOp = { Plus | Minus }
 //MulOp = { Star | Slash | Modulus }
@@ -68,6 +71,7 @@ FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
     (LPar ~ Expr ~ RPar) |
+    (New ~ Type) |
     Double |
     Integer |
     Boolean |
@@ -86,8 +90,9 @@ Return = { "return" }
 If = { "if" }
 Else = { "else" }
 While = { "while" }
+New = { "new" }
 
-DeclItem = { Ident ~ Assign ~ Expr | Ident}
+DeclItem = { Ident ~ Assign ~ Expr | Ident }
 
 Stmt = {
     ( Type ~ (DeclItem ~ ("," ~ DeclItem)*)? ~ ";") |
@@ -107,7 +112,14 @@ Blk = { "{" ~ Stmt* ~ "}" }
 
 Arg = { Type ~ Ident }
 
-TopDef = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
+StructDefPrefix = @{ "struct" ~ WHITESPACE }
+StructDef = { StructDefPrefix ~ Ident ~ "{" ~ (Arg ~ ";")* ~ "}" ~ ";" }
 
+TypeDefPrefix = @{ "typedef" ~ WHITESPACE+ ~ StructDefPrefix}
+TypeDef = { TypeDefPrefix ~ Ident ~ Ident ~ ";" }
+
+Function = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
+
+TopDef = _{ Function | StructDef | TypeDef }
 Program = { SOI ~ TopDef+ ~ EOI}
 

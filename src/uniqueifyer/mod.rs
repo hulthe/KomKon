@@ -1,4 +1,4 @@
-use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr, DeclItem};
+use crate::ast::{Program, Node, Function, Blk, Stmt, Expr, DeclItem};
 use crate::util::NameGenerator;
 use crate::util::stack::{HasIdentifier, search_stack};
 
@@ -49,12 +49,12 @@ pub fn uniqueify(program: &mut Program) {
     let mut stack = vec![];
 
     stack.push(StackElem::Scope("Global"));
-    for td in program.top_defs.iter() {
+    for td in program.functions.iter() {
         // Make sure no auto-generated names conflict with the existing top-def identifiers
         stack.push(StackElem::Mapping(td.elem.ident.clone(), td.elem.ident.clone()));
     }
 
-    for td in program.top_defs.iter_mut() {
+    for td in program.functions.iter_mut() {
         let mut names = NameGenerator::new("v");
         td.uniqueify(&mut names, &mut stack);
     }
@@ -71,7 +71,7 @@ where T: Uniqueify {
     }
 }
 
-impl Uniqueify for TopDef<'_> {
+impl Uniqueify for Function<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         stack.push(StackElem::Scope("Function"));
         for a in self.args.iter_mut() {

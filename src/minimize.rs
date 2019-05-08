@@ -1,4 +1,4 @@
-use crate::ast::{Program, Node, TopDef, Blk, Stmt, Expr, DeclItem};
+use crate::ast::{Program, Node, Function, Blk, Stmt, Expr, DeclItem};
 
 /// This trait is for nodes in the AST which can be minimized.
 /// e.g. Expr:s on the form Add(Sub(2, 1), 3) should become 4.
@@ -8,7 +8,7 @@ pub trait Minimize {
 
 impl Minimize for Program<'_> {
     fn minimize(&mut self) {
-        self.top_defs.iter_mut().for_each(Minimize::minimize);
+        self.functions.iter_mut().for_each(Minimize::minimize);
     }
 }
 
@@ -19,7 +19,7 @@ where T: Minimize {
     }
 }
 
-impl Minimize for TopDef<'_> {
+impl Minimize for Function<'_> {
     fn minimize(&mut self) {
         self.body.minimize()
     }

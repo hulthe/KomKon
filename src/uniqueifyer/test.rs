@@ -1,4 +1,4 @@
-use crate::ast::{Type, Program, Node, TopDef, Arg, Blk, Stmt, Expr, DeclItem};
+use crate::ast::{Type, Program, Node, Function, Arg, Blk, Stmt, Expr, DeclItem};
 use crate::uniqueifyer::uniqueify;
 
 macro_rules! n {
@@ -12,8 +12,8 @@ macro_rules! d {
 #[test]
 fn minimize() {
     let mut program = Program{
-        top_defs: vec![
-            n!(TopDef {
+        functions: vec![
+            n!(Function {
                 return_type: Type::Integer,
                 ident: "add".into(),
                 args: vec![
@@ -34,7 +34,7 @@ fn minimize() {
                     )),
                 ])),
             }),
-            n!(TopDef {
+            n!(Function {
                 return_type: Type::Void,
                 ident: "main".into(),
                 args: vec![],
@@ -50,10 +50,10 @@ fn minimize() {
 
     uniqueify(&mut program);
 
-    assert_eq!(program.top_defs[0].elem.args[0].1, "v0");
-    assert_eq!(program.top_defs[0].elem.args[1].1, "v1");
+    assert_eq!(program.functions[0].elem.args[0].1, "v0");
+    assert_eq!(program.functions[0].elem.args[1].1, "v1");
 
-    if let box Stmt::Declare(_, items) = &program.top_defs[0].elem.body.elem.0[0].elem {
+    if let box Stmt::Declare(_, items) = &program.functions[0].elem.body.elem.0[0].elem {
         if let DeclItem::Init(s0, Expr::Add(
             d!(Expr::Ident(s1)),
             d!(Expr::Ident(s2)),
@@ -68,7 +68,7 @@ fn minimize() {
         assert!(false);
     }
 
-    if let box Stmt::Declare(_, items) = &program.top_defs[1].elem.body.elem.0[0].elem {
+    if let box Stmt::Declare(_, items) = &program.functions[1].elem.body.elem.0[0].elem {
         if let (DeclItem::Init(s0, _), DeclItem::Init(s1, _)) = (&items[0], &items[1]) {
             assert_eq!(s0, "v0");
             assert_eq!(s1, "v1");

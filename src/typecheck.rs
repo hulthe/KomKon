@@ -1,5 +1,5 @@
 use crate::CompilerError;
-use crate::ast::{Type, Program, TopDef, Blk, Stmt, Arg, DeclItem, Expr, Node};
+use crate::ast::{Type, Program, Function, Blk, Stmt, Arg, DeclItem, Expr, Node};
 use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
 use colored::*;
 use std::io::{self, Write, StderrLock};
@@ -98,24 +98,24 @@ pub fn type_check<'a>(prog: &mut Program<'a>) -> Result<(), Error<'a>> {
     stack.push(StackElem::Type(Function(Type::Integer, "readInt".into(), vec![])));
     stack.push(StackElem::Type(Function(Type::Double, "readDouble".into(), vec![])));
 
-    for td in &prog.top_defs {
-        if td.elem.ident == "main" {
-            if td.elem.return_type != Type::Integer ||
-                td.elem.args.len() != 0 {
-                return Err(Error::Context(td.get_slice(), ErrorKind::InvalidMainDef));
+    for f in &prog.functions {
+        if f.elem.ident == "main" {
+            if f.elem.return_type != Type::Integer ||
+                f.elem.args.len() != 0 {
+                return Err(Error::Context(f.get_slice(), ErrorKind::InvalidMainDef));
             }
         }
         push_stack_def(&mut stack, Function(
-            td.elem.return_type,
-            td.elem.ident.clone(),
-            td.elem.args.clone(),
+            f.elem.return_type,
+            f.elem.ident.clone(),
+            f.elem.args.clone(),
         ))?;
     }
 
     search_stack(&stack, "main").ok_or(Error::NoContext(ErrorKind::MissingMain))?;
 
-    for td in &mut prog.top_defs {
-        td.elem.check(&mut stack, Type::Void)?;
+    for f in &mut prog.functions {
+        f.elem.check(&mut stack, Type::Void)?;
     }
 
     Ok(())
@@ -162,7 +162,7 @@ impl<'a, T> TypeCheckable<'a> for Node<'a, T>
     }
 }
 
-impl<'a> TypeCheckable<'a> for TopDef<'a> {
+impl<'a> TypeCheckable<'a> for Function<'a> {
     fn check(&mut self, stack: &mut Vec<StackElem>, _: Type) -> Result<Type, Error<'a>> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {

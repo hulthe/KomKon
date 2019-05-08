@@ -2,14 +2,14 @@ use crate::ast::{Rule, FromPair, Type, Node, Blk, Arg, ASTError};
 use pest::iterators::Pair;
 
 #[derive(Debug)]
-pub struct TopDef<'a> {
+pub struct Function<'a> {
     pub return_type: Type,
     pub ident: String,
     pub args: Vec<Arg>,
     pub body: Node<'a, Blk<'a>>,
 }
 
-impl<'a> FromPair<'a> for TopDef<'a> {
+impl<'a> FromPair<'a> for Function<'a> {
     fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
         let mut type_ = None;
         let mut ident = None;
@@ -21,14 +21,16 @@ impl<'a> FromPair<'a> for TopDef<'a> {
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 Rule::Arg => args.push(Arg::from_pair(pair)?),
                 Rule::Blk => block = Some(Node::from_pair(pair)?),
-                _ => Err("No matching rule for TopDef")?,
+                Rule::LPar |
+                Rule::RPar => {}
+                r => Err(format!("No matching rule for Function: {:?}", r))?,
             }
         }
-        Ok(TopDef {
-            return_type: type_.ok_or("No Type set for TopDef")?,
-            ident: ident.ok_or("No Ident set for TopDef")?,
+        Ok(Function {
+            return_type: type_.ok_or("No Type set for Function")?,
+            ident: ident.ok_or("No Ident set for Function")?,
             args,
-            body: block.ok_or("No Body set for TopDef")?,
+            body: block.ok_or("No Body set for Function")?,
         })
     }
 }

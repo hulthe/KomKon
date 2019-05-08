@@ -1,6 +1,6 @@
 pub mod llvm;
 
-use crate::ast::{Type, Program, TopDef, Blk, Stmt, DeclItem, Expr, Node};
+use crate::ast::{Type, Program, Function, Blk, Stmt, DeclItem, Expr, Node};
 use crate::util::NameGenerator;
 use self::llvm::{LLVMElem, LLVMExpr, LLVMType, LLVMVal, LLVMFOrd, LLVMIOrd};
 use std::collections::{VecDeque, HashMap, BTreeSet};
@@ -201,14 +201,14 @@ trait ToLLVM {
 
 impl ToLLVM for Program<'_> {
     fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, _: Type) -> Option<LLVMVal> {
-        for node in &self.top_defs {
+        for node in &self.functions {
             node.transform(out, names, node.elem.return_type);
         }
         None
     }
 }
 
-impl ToLLVM for TopDef<'_> {
+impl ToLLVM for Function<'_> {
     fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
         let args: Vec<(String, LLVMType, String)> = self.args.iter()
             .map(|arg| (arg.0.into(), arg.1.clone()))
