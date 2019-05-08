@@ -22,6 +22,7 @@ pub enum Expr<'a> {
     Integer(i32),
     Boolean(bool),
     Var(VarRef),
+    // TODO: Nullptrs
     Str(String),
     FunctionCall(String, Vec<Node<'a, Expr<'a>>>),
 }
@@ -118,6 +119,9 @@ impl<'a> Expr<'a> {
 
                 Expr::Str(s)
             }
+
+            [(Rule::LPar, _), (Rule::Type, tp), (Rule::RPar, _), (Rule::Null, _)]
+            => Err("null pointers are not yet implemented.")?, // TODO
 
             [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
             => Expr::from_pair(expp.clone())?,

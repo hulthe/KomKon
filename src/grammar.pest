@@ -35,6 +35,8 @@ RCurl = { "}" }
 LCurl = { "{" }
 Semi = { ";" }
 
+Null = { "null" }
+
 //AddOp = { Plus | Minus }
 //MulOp = { Star | Slash | Modulus }
 //RelOp = { GT | GE | LT | LE | EQ | NE }
@@ -55,8 +57,8 @@ String = @{ "\"" ~ Char* ~ "\"" }
 
 Primitive = { "int" | "double" | "boolean" | "void" }
 
-NonType = _{Boolean | Return | If | Else | While}
-NonIdent = _{Primitive | NonType}
+NonType = _{ Boolean | Return | If | Else | While | Null }
+NonIdent = _{ Primitive | NonType }
 
 Ident = @{
     (NonIdent ~ (Digit | Alpha)+) |
@@ -73,6 +75,7 @@ Variable = { (Ident ~ Deref ~ Variable) | Ident }
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
+    (LPar ~ Type ~ RPar ~ Null) |
     (LPar ~ Expr ~ RPar) |
     (New ~ Type) |
     Double |
