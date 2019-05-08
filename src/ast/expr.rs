@@ -1,4 +1,4 @@
-use crate::ast::{Rule, FromPair, Node, ASTError};
+use crate::ast::{Rule, FromPair, Node, ASTError, VarRef};
 use pest::iterators::Pair;
 
 #[derive(Debug)]
@@ -21,7 +21,7 @@ pub enum Expr<'a> {
     Double(f64),
     Integer(i32),
     Boolean(bool),
-    Ident(String),
+    Var(VarRef),
     Str(String),
     FunctionCall(String, Vec<Node<'a, Expr<'a>>>),
 }
@@ -130,7 +130,7 @@ impl<'a> Expr<'a> {
                 Expr::FunctionCall(idnp.as_str().to_owned(), exprs)
             }
 
-            [(Rule::Ident, boop)] => Expr::Ident(boop.as_str().to_owned()),
+            [(Rule::Variable, v)] => Expr::Var(VarRef::from_pair(v.clone())?),
 
             _ => Err("No matching rule for Expr")?,
         })

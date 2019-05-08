@@ -27,6 +27,7 @@ Inc = { "++" }
 Dec = { "--" }
 
 Assign = { "=" }
+Deref = { "->" }
 
 LPar = { "(" }
 RPar = { ")" }
@@ -68,6 +69,8 @@ Type = @{
 }
 FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
+Variable = { (Ident ~ Deref ~ Variable) | Ident }
+
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
     (LPar ~ Expr ~ RPar) |
@@ -75,7 +78,7 @@ Expr6 = {
     Double |
     Integer |
     Boolean |
-    Ident |
+    Variable |
     String
 }
 
@@ -101,9 +104,9 @@ Stmt = {
     ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
     ( While ~ "(" ~ Expr ~ ")" ~ Stmt) |
     Blk |
-    (Ident ~ Assign ~ Expr  ~ ";") |
-    (Ident ~ Inc ~ ";") |
-    (Ident ~ Dec ~ ";") |
+    (Variable ~ Assign ~ Expr  ~ ";") |
+    (Variable ~ Inc ~ ";") |
+    (Variable ~ Dec ~ ";") |
     (Expr ~ ";") |
     ";"
 }
@@ -116,7 +119,7 @@ StructDefPrefix = @{ "struct" ~ WHITESPACE }
 StructDef = { StructDefPrefix ~ Ident ~ "{" ~ (Arg ~ ";")* ~ "}" ~ ";" }
 
 TypeDefPrefix = @{ "typedef" ~ WHITESPACE+ ~ StructDefPrefix}
-TypeDef = { TypeDefPrefix ~ Ident ~ Ident ~ ";" }
+TypeDef = { TypeDefPrefix ~ Ident ~ "*" ~ Ident ~ ";" }
 
 Function = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
 

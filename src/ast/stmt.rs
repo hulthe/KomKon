@@ -1,4 +1,4 @@
-use crate::ast::{Rule, FromPair, Type, Node, Blk, Expr, DeclItem, ASTError};
+use crate::ast::{Rule, FromPair, Type, Node, Blk, Expr, DeclItem, VarRef, ASTError};
 use pest::iterators::Pair;
 
 #[derive(Debug)]
@@ -9,9 +9,9 @@ pub enum Stmt<'a> {
     IfElse(Node<'a, Expr<'a>>, Node<'a, Stmt<'a>>, Node<'a, Stmt<'a>>),
     While(Node<'a, Expr<'a>>, Node<'a, Stmt<'a>>),
     Block(Blk<'a>),
-    Assignment(String, Node<'a, Expr<'a>>),
-    Increment(String),
-    Decrement(String),
+    Assignment(VarRef, Node<'a, Expr<'a>>),
+    Increment(VarRef),
+    Decrement(VarRef),
     Expression(Node<'a, Expr<'a>>),
     Declare(Type, Vec<DeclItem<'a>>),
     Empty,
@@ -42,12 +42,12 @@ impl<'a> FromPair<'a> for Stmt<'a> {
 
             [(Rule::Blk, blk)] => Stmt::Block(Blk::from_pair(blk.clone())?),
 
-            [(Rule::Ident, idep), (Rule::Assign, _), (Rule::Expr, expp)]
-            => Stmt::Assignment(idep.as_str().to_owned(), Node::from_pair(expp.clone())?),
+            [(Rule::Variable, idep), (Rule::Assign, _), (Rule::Expr, expp)]
+            => Stmt::Assignment(VarRef::from_pair(idep.clone())?, Node::from_pair(expp.clone())?),
 
-            [(Rule::Ident, idep), (Rule::Inc, _)] => Stmt::Increment(idep.as_str().to_owned()),
+            [(Rule::Variable, idep), (Rule::Inc, _)] => Stmt::Increment(VarRef::from_pair(idep.clone())?),
 
-            [(Rule::Ident, idep), (Rule::Dec, _)] => Stmt::Decrement(idep.as_str().to_owned()),
+            [(Rule::Variable, idep), (Rule::Dec, _)] => Stmt::Decrement(VarRef::from_pair(idep.clone())?),
 
             [(Rule::Expr, expr)] => Stmt::Expression(Node::from_pair(expr.clone())?),
 

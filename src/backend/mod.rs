@@ -1,6 +1,6 @@
 pub mod llvm;
 
-use crate::ast::{Type, Program, Function, Blk, Stmt, DeclItem, Expr, Node};
+use crate::ast::{Type, Program, Function, Blk, Stmt, DeclItem, Expr, VarRef, Node};
 use crate::util::NameGenerator;
 use self::llvm::{LLVMElem, LLVMExpr, LLVMType, LLVMVal, LLVMFOrd, LLVMIOrd};
 use std::collections::{VecDeque, HashMap, BTreeSet};
@@ -350,7 +350,10 @@ impl ToLLVM for Stmt<'_> {
             Stmt::Block(block) => {
                 block.transform(out, names, tp);
             }
-            Stmt::Assignment(ident, expr) => {
+
+            Stmt::Assignment(VarRef::Deref(_, _), _expr)
+                => unimplemented!("Assignment pointer deref"),
+            Stmt::Assignment(VarRef::Ident(ident), expr) => {
                 let tp = expr.tp.unwrap();
                 let val = expr.transform(out, names, tp).unwrap();
                 out.lines.push_back(LLVMElem::Store {
@@ -361,7 +364,8 @@ impl ToLLVM for Stmt<'_> {
                 });
             }
 
-            Stmt::Increment(ident) => {
+            Stmt::Increment(VarRef::Deref(_, _)) => unimplemented!("Increment pointer deref"),
+            Stmt::Increment(VarRef::Ident(ident)) => {
                 let tp = Type::Integer;
                 let i1 = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -384,7 +388,8 @@ impl ToLLVM for Stmt<'_> {
             }
 
             // TODO: Remove duplicated code
-            Stmt::Decrement(ident) => {
+            Stmt::Decrement(VarRef::Deref(_, _)) => unimplemented!("Increment pointer deref"),
+            Stmt::Decrement(VarRef::Ident(ident)) => {
                 let tp = Type::Integer;
                 let i1 = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -611,7 +616,9 @@ impl ToLLVM for Expr<'_> {
             &Expr::Double(f) => Some(f.into()),
             &Expr::Integer(i) => Some(i.into()),
             &Expr::Boolean(b) => Some(b.into()),
-            Expr::Ident(ident) => {
+            Expr::Var(VarRef::Deref(_, _))
+                => unimplemented!("Code gen not implemented for pointer deref"),
+            Expr::Var(VarRef::Ident(ident)) => {
                 let i = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),

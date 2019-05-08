@@ -122,7 +122,7 @@ impl Minimize for Expr<'_> {
             Expr::Double(_) |
             Expr::Integer(_) |
             Expr::Boolean(_) |
-            Expr::Ident(_) |
+            Expr::Var(_) |
             Expr::Str(_) => {}
         }
 

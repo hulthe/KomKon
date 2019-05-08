@@ -1,4 +1,4 @@
-use crate::ast::{Program, Node, Function, Blk, Stmt, Expr, DeclItem};
+use crate::ast::{Program, Node, Function, Blk, Stmt, Expr, DeclItem, VarRef};
 use crate::util::NameGenerator;
 use crate::util::stack::{HasIdentifier, search_stack};
 
@@ -113,13 +113,16 @@ impl Uniqueify for Stmt<'_> {
 
             Stmt::Block(blk) => blk.uniqueify(names, stack),
 
-            Stmt::Assignment(ident, expr) => {
+            Stmt::Assignment(VarRef::Deref(ident, _), expr) |
+            Stmt::Assignment(VarRef::Ident(ident), expr) => {
                 expr.uniqueify(names, stack);
                 swap_name(ident, stack);
             }
 
-            Stmt::Increment(ident) |
-            Stmt::Decrement(ident) => {
+            Stmt::Increment(VarRef::Deref(ident, _)) |
+            Stmt::Increment(VarRef::Ident(ident)) |
+            Stmt::Decrement(VarRef::Deref(ident, _)) |
+            Stmt::Decrement(VarRef::Ident(ident)) => {
                 swap_name(ident, stack);
             }
 
@@ -150,7 +153,8 @@ impl Uniqueify for Stmt<'_> {
 impl Uniqueify for Expr<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         match self {
-            Expr::Ident(ident) => swap_name(ident, stack),
+            Expr::Var(VarRef::Ident(ident)) |
+            Expr::Var(VarRef::Deref(ident, _)) => swap_name(ident, stack),
 
             Expr::LOr(e1, e2) |
             Expr::LAnd(e1, e2) |
