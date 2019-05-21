@@ -1,4 +1,5 @@
 use crate::ast::{Type, TypeRef};
+use crate::util::write_list;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Clone, Debug)]
@@ -8,6 +9,7 @@ pub enum LLVMType {
     V,
     Array(usize, Box<LLVMType>),
     Ptr(Box<LLVMType>),
+    Struct(Vec<LLVMType>),
 }
 
 impl LLVMType {
@@ -33,6 +35,7 @@ impl LLVMType {
             LLVMType::I(_) => "0",
             LLVMType::F(_) => "0.0",
             LLVMType::V => "void",
+            LLVMType::Struct(_) |
             LLVMType::Array(_, _) |
             LLVMType::Ptr(_) => unimplemented!(),
         }
@@ -52,7 +55,7 @@ impl From<TypeRef> for LLVMType {
                 name,
                 fields,
             } => {
-                unimplemented!()
+                LLVMType::Struct(fields.values().map(|t| t.clone().into()).collect())
             }
         }
     }
@@ -83,6 +86,11 @@ impl Display for LLVMType {
             V => write!(f, "void")?,
             Array(len, box t) => write!(f, "[{} x {}]", len, t)?,
             Ptr(box t) => write!(f, "{}*", t)?,
+            Struct(fields) => {
+                write!(f, "{{ ")?;
+                write_list(f, ", ", fields.iter(), |f, field| write!(f, "{}", field))?;
+                write!(f, " }}")?;
+            }
         }
         Ok(())
     }

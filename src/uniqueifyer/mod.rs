@@ -2,8 +2,8 @@ use crate::ast::{Program, Node, Function, Blk, Stmt, Expr, DeclItem, VarRef};
 use crate::util::NameGenerator;
 use crate::util::stack::{HasIdentifier, search_stack};
 
-#[cfg(test)]
-mod test;
+//#[cfg(test)]
+//mod test;
 
 enum StackElem {
     Scope(&'static str),

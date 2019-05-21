@@ -3,29 +3,28 @@ use pest::Parser;
 use std::collections::HashMap;
 use crate::ast::jl_type::{Type, TypeRef};
 use crate::ast::arg::Arg;
-use crate::ast::jl_type::Type::Struct;
 use std::rc::Rc;
 
+// TODO: make TypeMap into a struct with custom get methods which return Result<_, ASTError>
 pub type TypeMap = HashMap<String, TypeRef>;
 
 #[derive(Debug)]
 pub struct Program<'a> {
     pub functions: Vec<Node<'a, Function<'a>>>,
-    //pub types: HashMap<String, Type>,
+    pub types: TypeMap,
 }
 
 impl<'a> Program<'a> {
     pub fn parse(raw: &'a str) -> Result<Self, ASTError> {
         let mut parse = JavaletteParser::parse(Rule::Program, raw)?;
         let program = parse.next().unwrap();
-        let mut functions: Vec<Node<'a, Function<'a>>> = vec![];
         let mut types: TypeMap = HashMap::new();
         let mut struct_fields: HashMap<String, HashMap<String, String>> = HashMap::new();
 
+        types.insert("void".into(), Type::Void.into());
         types.insert("int".into(), Type::Integer.into());
         types.insert("double".into(), Type::Double.into());
         types.insert("boolean".into(), Type::Boolean.into());
-        types.insert("string".into(), Type::String.into());
 
         let mut rest = vec![];
         // put all structs into the types-map
@@ -74,16 +73,22 @@ impl<'a> Program<'a> {
             match pair.as_rule() {
                 Rule::TypeDef => {
                     let mut pairs = pair.into_inner();
-                    let s = pairs.nth(1).unwrap().as_str();
-                    let target_type = types.get(s).expect(&format!("Nani? {}", s));
-                    let ident = pairs.next().unwrap().as_str();
+                    let (type_ident, ident) = match (pairs.nth(1), pairs.next()) {
+                        (Some(type_p), Some(ident_p)) => (type_p.as_str(), ident_p.as_str()),
+                        (None, _) => { return Err("TypeDef rule: missing type".into()); }
+                        (_, None) => { return Err("TypeDef rule: missing ident".into()); }
+                    };
+
+                    let target_type = match types.get(type_ident) {
+                        Some(t) => t,
+                        None => { return Err(ASTError::NonExistentType(type_ident.to_owned())); }
+                    };
 
                     if types.contains_key(ident) {
                         return Err(format!("{} already declared", ident).into());
                     }
 
                     types.insert(ident.to_owned(), Rc::new(Type::Pointer(target_type.clone())));
-
                     // TODO only allowed to point at structs?
                 }
                 _ => rest2.push(pair),
@@ -92,14 +97,13 @@ impl<'a> Program<'a> {
 
         for (name, fields) in struct_fields {
             let new_fields = fields.into_iter()
-                .filter_map(|(name, tp)| {
+                .map(|(name, tp)| {
                     match types.get(&tp) {
-                        Some(type_rc) => Some((name, type_rc.clone())),
-                        // TODO: Err instead of None
-                        None => None,
+                        Some(type_rc) => Ok((name, type_rc.clone())),
+                        None => Err(ASTError::NonExistentType(tp.clone())),
                     }
                 })
-                .collect();
+                .collect::<Result<_, _>>()?;
             unsafe {
                 if let Some(type_rc) = types.get_mut(&name) {
                     if let Type::Struct {
@@ -108,10 +112,10 @@ impl<'a> Program<'a> {
                     } = (Rc::into_raw(type_rc.clone()) as *mut Type).as_mut().unwrap() {
                         *fields = new_fields;
                     } else {
-                        panic!("Fields belonged to type which was not a struct"); //TODO: Return error
+                        return Err("Field belonged to type which was not a struct".into());
                     }
                 } else {
-                    panic!("Fields belonged to type which was never defined"); // TODO: Return error
+                    return Err(ASTError::NonExistentType(name.clone()));
                 }
             }
         }
@@ -124,6 +128,7 @@ impl<'a> Program<'a> {
             .collect::<Result<Vec<_>, ASTError>>()?;
         Ok(Program {
             functions,
+            types,
         })
     }
 }

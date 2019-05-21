@@ -81,6 +81,7 @@ Expr6 = {
     Double |
     Integer |
     Boolean |
+    // TODO: Make pointer dereferencing into an actual expression
     Variable |
     String
 }
