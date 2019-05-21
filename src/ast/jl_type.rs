@@ -43,7 +43,7 @@ impl Display for Type {
             Type::Boolean => write!(f, "boolean"),
             Type::Void    => write!(f, "void"),
             Type::String  => write!(f, "string"),
-            Type::Struct { name, fields } => unimplemented!("Can't fmt Struct"),
+            Type::Struct { name, .. } => write!(f, "{}", name),
             Type::Pointer(t) => write!(f, "*{}", t),
         }
     }

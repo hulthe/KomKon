@@ -363,8 +363,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                 _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
             }
 
-            //
-            Expr::New(tp) => return Ok(tp.clone()),
+            Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 
             // Function call (type of function, check that expression types and length match)
             Expr::FunctionCall(ident, args)
