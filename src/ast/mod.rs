@@ -10,6 +10,7 @@ mod stmt;
 mod expr;
 mod arg;
 mod decl_item;
+mod var_ref;
 
 pub use error::ASTError;
 pub use jl_type::Type;
@@ -21,11 +22,11 @@ pub use stmt::Stmt;
 pub use expr::Expr;
 pub use arg::Arg;
 pub use decl_item::DeclItem;
+pub use var_ref::VarRef;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 pub struct JavaletteParser;
-
 
 /// Trait for converting pest pairs into concrete types
 ///

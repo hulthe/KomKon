@@ -1,5 +1,5 @@
 use crate::CompilerError;
-use crate::ast::{Type, Program, Function, Blk, Stmt, Arg, DeclItem, Expr, Node};
+use crate::ast::{Type, Program, Function, Blk, Stmt, Arg, DeclItem, Expr, VarRef, Node};
 use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
 use colored::*;
 use std::io::{self, Write, StderrLock};
@@ -211,14 +211,18 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
                 block2.check(stack, func_type)?;
             }
 
-            Stmt::Assignment(ident, stmt)
+            Stmt::Assignment(VarRef::Deref(_, _), _) => unimplemented!("Pointer deref typecheck"),
+            Stmt::Assignment(VarRef::Ident(ident), stmt)
             => if let Some(StackType::Variable(type_, _)) = search_stack(stack, ident) {
                 assert_type(*type_, stmt.check(stack, func_type)?)?;
             } else {
                 return Err(Error::NoContext(ErrorKind::Undeclared {}));
             }
 
-            Stmt::Increment(ident) | Stmt::Decrement(ident)
+            Stmt::Increment(VarRef::Deref(_, _)) |
+            Stmt::Decrement(VarRef::Deref(_, _)) => unimplemented!("Pointer deref typecheck"),
+
+            Stmt::Increment(VarRef::Ident(ident)) | Stmt::Decrement(VarRef::Ident(ident))
             => match search_stack(stack, ident) {
                 Some(StackType::Variable(type_, _ident))
                 => { assert_type(Type::Integer, *type_)?; }
@@ -351,7 +355,8 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             => Ok(Type::Boolean),
             Expr::Str(_)
             => Ok(Type::String),
-            Expr::Ident(ident)
+            Expr::Var(VarRef::Deref(_, _)) => unimplemented!("Pointer dereference not implemented"),
+            Expr::Var(VarRef::Ident(ident))
             => match search_stack(stack, ident) {
                 Some(StackType::Variable(t, _)) => Ok(*t),
                 Some(StackType::Function(t, ..)) => Ok(*t),

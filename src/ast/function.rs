@@ -21,8 +21,6 @@ impl<'a> FromPair<'a> for Function<'a> {
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 Rule::Arg => args.push(Arg::from_pair(pair)?),
                 Rule::Blk => block = Some(Node::from_pair(pair)?),
-                Rule::LPar |
-                Rule::RPar => {}
                 r => Err(format!("No matching rule for Function: {:?}", r))?,
             }
         }

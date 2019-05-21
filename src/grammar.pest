@@ -27,12 +27,15 @@ Inc = { "++" }
 Dec = { "--" }
 
 Assign = { "=" }
+Deref = { "->" }
 
 LPar = { "(" }
 RPar = { ")" }
 RCurl = { "}" }
 LCurl = { "{" }
 Semi = { ";" }
+
+Null = { "null" }
 
 //AddOp = { Plus | Minus }
 //MulOp = { Star | Slash | Modulus }
@@ -54,8 +57,8 @@ String = @{ "\"" ~ Char* ~ "\"" }
 
 Primitive = { "int" | "double" | "boolean" | "void" }
 
-NonType = _{Boolean | Return | If | Else | While}
-NonIdent = _{Primitive | NonType}
+NonType = _{ Boolean | Return | If | Else | While | Null }
+NonIdent = _{ Primitive | NonType }
 
 Ident = @{
     (NonIdent ~ (Digit | Alpha)+) |
@@ -68,14 +71,17 @@ Type = @{
 }
 FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
+Variable = { (Ident ~ Deref ~ Variable) | Ident }
+
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
+    (LPar ~ Type ~ RPar ~ Null) |
     (LPar ~ Expr ~ RPar) |
     (New ~ Type) |
     Double |
     Integer |
     Boolean |
-    Ident |
+    Variable |
     String
 }
 
@@ -101,9 +107,9 @@ Stmt = {
     ( If ~ "(" ~ Expr ~ ")" ~ Stmt) |
     ( While ~ "(" ~ Expr ~ ")" ~ Stmt) |
     Blk |
-    (Ident ~ Assign ~ Expr  ~ ";") |
-    (Ident ~ Inc ~ ";") |
-    (Ident ~ Dec ~ ";") |
+    (Variable ~ Assign ~ Expr  ~ ";") |
+    (Variable ~ Inc ~ ";") |
+    (Variable ~ Dec ~ ";") |
     (Expr ~ ";") |
     ";"
 }
@@ -116,7 +122,7 @@ StructDefPrefix = @{ "struct" ~ WHITESPACE }
 StructDef = { StructDefPrefix ~ Ident ~ "{" ~ (Arg ~ ";")* ~ "}" ~ ";" }
 
 TypeDefPrefix = @{ "typedef" ~ WHITESPACE+ ~ StructDefPrefix}
-TypeDef = { TypeDefPrefix ~ Ident ~ Ident ~ ";" }
+TypeDef = { TypeDefPrefix ~ Ident ~ "*" ~ Ident ~ ";" }
 
 Function = { Type ~ Ident ~ "(" ~ (Arg ~ ("," ~ Arg)*)? ~ ")" ~ Blk }
 

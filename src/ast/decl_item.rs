@@ -26,7 +26,7 @@ impl<'a> FromPair<'a> for DeclItem<'a> {
 
             [(Rule::Ident, idenp)] => DeclItem::NoInit(idenp.as_str().to_owned()),
 
-            _ => Err("No matching rule for Stmt")?,
+            _ => Err("No matching rule for DeclItem")?,
         })
     }
 }

@@ -1,4 +1,4 @@
-use crate::ast::{Type, Program, Node, Function, Arg, Blk, Stmt, Expr, DeclItem};
+use crate::ast::{Type, Program, Node, Function, Arg, Blk, Stmt, Expr, DeclItem, VarRef};
 use crate::uniqueifyer::uniqueify;
 
 macro_rules! n {
@@ -24,13 +24,13 @@ fn minimize() {
                     n!(Stmt::Declare(Type::Integer, vec![
                         DeclItem::Init("a".into(),
                             Expr::Add(
-                                n!(Expr::Ident("a".into())),
-                                n!(Expr::Ident("b".into())),
+                                n!(Expr::Var(VarRef::Ident("a".into()))),
+                                n!(Expr::Var(VarRef::Ident("b".into()))),
                             )
                         ),
                     ])),
                     n!(Stmt::Return(
-                        n!(Expr::Ident("a".into()))
+                        n!(Expr::Var(VarRef::Ident("a".into())))
                     )),
                 ])),
             }),
@@ -55,8 +55,8 @@ fn minimize() {
 
     if let box Stmt::Declare(_, items) = &program.functions[0].elem.body.elem.0[0].elem {
         if let DeclItem::Init(s0, Expr::Add(
-            d!(Expr::Ident(s1)),
-            d!(Expr::Ident(s2)),
+            d!(Expr::Var(VarRef::Ident(s1))),
+            d!(Expr::Var(VarRef::Ident(s2))),
         )) = &items[0] {
             assert_eq!(s0, "v2");
             assert_eq!(s1, "v0");
