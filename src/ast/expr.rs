@@ -1,5 +1,6 @@
 use crate::ast::{Rule, FromPair, TypeMap, Node, ASTError, VarRef};
 use pest::iterators::Pair;
+use crate::ast::jl_type::TypeRef;
 
 #[derive(Debug)]
 pub enum Expr<'a> {
@@ -18,6 +19,7 @@ pub enum Expr<'a> {
     Sub(Node<'a, Expr<'a>>, Node<'a, Expr<'a>>),
     Neg(Node<'a, Expr<'a>>),
     Not(Node<'a, Expr<'a>>),
+    New(TypeRef),
     Double(f64),
     Integer(i32),
     Boolean(bool),
@@ -84,6 +86,8 @@ impl<'a> Expr<'a> {
             [(Rule::Expr5, expp)] |
             [(Rule::Expr6, expp)] => Expr::from_pair(expp.clone(), types)?,
 
+            [(Rule::New, _), (Rule::Type, tp)] => Expr::New(tp),
+
             [(Rule::Double, dblp)] => Expr::Double(dblp.as_str().parse().unwrap()),
 
             [(Rule::Integer, intp)] => Expr::Integer(intp.as_str().parse().unwrap()),
@@ -92,7 +96,7 @@ impl<'a> Expr<'a> {
 
             [(Rule::String, strp)] => {
                 let s = strp.as_str();
-                let l = s.len()-2;
+                let l = s.len() - 2;
                 let mut s: String = String::with_capacity(l);
                 let mut escaped: bool = false;
                 for c in strp.as_str()

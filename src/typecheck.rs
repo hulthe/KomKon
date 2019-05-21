@@ -363,6 +363,9 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                 _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
             }
 
+            //
+            Expr::New(tp) => return tp,
+
             // Function call (type of function, check that expression types and length match)
             Expr::FunctionCall(ident, args)
             => match search_stack(stack, ident) {
