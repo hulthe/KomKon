@@ -1,4 +1,4 @@
-use crate::ast::Type;
+use crate::ast::{Type, TypeRef};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Clone, Debug)]
@@ -39,6 +39,25 @@ impl LLVMType {
     }
 }
 
+impl From<TypeRef> for LLVMType {
+    fn from(t: TypeRef) -> LLVMType {
+        match t.as_ref() {
+            Type::Integer => LLVMType::I(32),
+            Type::Double => LLVMType::F(64),
+            Type::Void => LLVMType::V,
+            Type::Boolean => LLVMType::I(1),
+            Type::String => LLVMType::Ptr(box LLVMType::I(8)),
+            Type::Pointer(t) => LLVMType::Ptr(box t.clone().into()),
+            Type::Struct {
+                name,
+                fields,
+            } => {
+                unimplemented!()
+            }
+        }
+    }
+}
+
 impl From<Type> for LLVMType {
     fn from(t: Type) -> LLVMType {
         match t {
@@ -47,6 +66,7 @@ impl From<Type> for LLVMType {
             Type::Void => LLVMType::V,
             Type::Boolean => LLVMType::I(1),
             Type::String => LLVMType::Ptr(box LLVMType::I(8)),
+            _ => unimplemented!(),
         }
     }
 }

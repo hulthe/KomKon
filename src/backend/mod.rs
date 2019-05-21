@@ -1,6 +1,6 @@
 pub mod llvm;
 
-use crate::ast::{Type, Program, Function, Blk, Stmt, DeclItem, Expr, VarRef, Node};
+use crate::ast::{Type, TypeRef, Program, Function, Blk, Stmt, DeclItem, Expr, VarRef, Node};
 use crate::util::NameGenerator;
 use self::llvm::{LLVMElem, LLVMExpr, LLVMType, LLVMVal, LLVMFOrd, LLVMIOrd};
 use std::collections::{VecDeque, HashMap, BTreeSet};
@@ -29,7 +29,7 @@ impl LLVM {
         out.lines.push_back(LLVMElem::Empty);
 
         let mut names = NameGenerator::new("t");
-        p.transform(&mut out, &mut names, Type::Void);
+        p.transform(&mut out, &mut names, Type::Void.into());
         out.clean()
         //out
     }
@@ -196,27 +196,27 @@ trait ToLLVM {
     /// * `tp`  the type of the current context
     ///         in general only set by Blk:s
     ///
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal>;
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal>;
 }
 
 impl ToLLVM for Program<'_> {
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, _: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, _: TypeRef) -> Option<LLVMVal> {
         for node in &self.functions {
-            node.transform(out, names, node.elem.return_type);
+            node.transform(out, names, node.elem.return_type.clone());
         }
         None
     }
 }
 
 impl ToLLVM for Function<'_> {
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
         let args: Vec<(String, LLVMType, String)> = self.args.iter()
-            .map(|arg| (arg.0.into(), arg.1.clone()))
+            .map(|arg| (arg.0.clone().into(), arg.1.clone()))
             .map(|(t, id)| (out.new_var_name(), t, id))
             .collect();
         out.lines.push_back(LLVMElem::TopDef(
             self.ident.clone(),
-            self.return_type.into(),
+            self.return_type.clone().into(),
             args.iter().map(|(nid, t, _)| (t.clone(), nid.clone())).collect(),
         ));
 
@@ -232,13 +232,13 @@ impl ToLLVM for Function<'_> {
             });
         }
 
-        self.body.transform(out, names, tp);
+        self.body.transform(out, names, tp.clone());
 
         if let Some(LLVMElem::Label(_)) = out.lines.back() {
             out.lines.push_back(LLVMElem::Empty);
         }
 
-        if tp == Type::Void {
+        if *tp.as_ref() == Type::Void {
             out.lines.push_back(LLVMElem::RetV);
         }
 
@@ -250,20 +250,20 @@ impl ToLLVM for Function<'_> {
 impl<T> ToLLVM for Node<'_, T>
     where T: ToLLVM {
     /// Assigns the type information for the current context
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
-        let tp = self.tp.unwrap_or(tp);
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
+        let tp = self.tp.clone().unwrap_or(tp);
         self.elem.transform(out, names, tp)
     }
 }
 
 impl ToLLVM for Blk<'_> {
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
         let mut nodes = self.0.iter();
         if let Some(node) = nodes.next() {
-            node.transform(out, names, tp);
+            node.transform(out, names, tp.clone());
             for node in nodes {
                 out.lines.push_back(LLVMElem::Empty);
-                node.transform(out, names, tp);
+                node.transform(out, names, tp.clone());
             }
         }
         None
@@ -271,16 +271,16 @@ impl ToLLVM for Blk<'_> {
 }
 
 impl ToLLVM for Stmt<'_> {
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
         match self {
             Stmt::Return(expr) => {
                 let val = expr.transform(out, names, tp);
-                out.lines.push_back(LLVMElem::Ret(expr.tp.unwrap().into(), val.unwrap()));
+                out.lines.push_back(LLVMElem::Ret(expr.tp.clone().unwrap().into(), val.unwrap()));
             }
             Stmt::ReturnVoid => out.lines.push_back(LLVMElem::RetV),
 
             Stmt::If(expr, block) => {
-                let expr = expr.transform(out, names, tp).unwrap();
+                let expr = expr.transform(out, names, tp.clone()).unwrap();
                 let lab_if_true = out.new_lab_name();
                 let lab_end_if = out.new_lab_name();
                 out.lines.push_back(LLVMElem::Branch {
@@ -290,14 +290,14 @@ impl ToLLVM for Stmt<'_> {
                 });
 
                 out.lines.push_back(LLVMElem::Label(lab_if_true));
-                block.transform(out, names, tp);
+                block.transform(out, names, tp.clone());
                 out.lines.push_back(LLVMElem::Jump(lab_end_if.clone()));
 
                 out.lines.push_back(LLVMElem::Label(lab_end_if));
             }
 
             Stmt::IfElse(expr, block1, block2) => {
-                let expr = expr.transform(out, names, tp).unwrap();
+                let expr = expr.transform(out, names, tp.clone()).unwrap();
                 let lab_if_true = out.new_lab_name();
                 let lab_if_false = out.new_lab_name();
                 let lab_end_if = out.new_lab_name();
@@ -308,11 +308,11 @@ impl ToLLVM for Stmt<'_> {
                 });
 
                 out.lines.push_back(LLVMElem::Label(lab_if_true));
-                block1.transform(out, names, tp);
+                block1.transform(out, names, tp.clone());
                 out.lines.push_back(LLVMElem::Jump(lab_end_if.clone()));
 
                 out.lines.push_back(LLVMElem::Label(lab_if_false));
-                block2.transform(out, names, tp);
+                block2.transform(out, names, tp.clone());
                 out.lines.push_back(LLVMElem::Jump(lab_end_if.clone()));
 
                 out.lines.push_back(LLVMElem::Label(lab_end_if));
@@ -332,7 +332,7 @@ impl ToLLVM for Stmt<'_> {
 
                     out.lines.push_back(LLVMElem::Jump(lab_entry.clone()));
                     out.lines.push_back(LLVMElem::Label(lab_entry.clone()));
-                    let expr = expr.transform(out, names, tp).unwrap();
+                    let expr = expr.transform(out, names, tp.clone()).unwrap();
                     out.lines.push_back(LLVMElem::Branch {
                         cond: expr.clone(),
                         if_true: lab_body.clone(),
@@ -354,10 +354,10 @@ impl ToLLVM for Stmt<'_> {
             Stmt::Assignment(VarRef::Deref(_, _), _expr)
                 => unimplemented!("Assignment pointer deref"),
             Stmt::Assignment(VarRef::Ident(ident), expr) => {
-                let tp = expr.tp.unwrap();
-                let val = expr.transform(out, names, tp).unwrap();
+                let tp = expr.tp.clone().unwrap();
+                let val = expr.transform(out, names, tp.clone()).unwrap();
                 out.lines.push_back(LLVMElem::Store {
-                    val_t: tp.into(),
+                    val_t: tp.clone().into(),
                     val,
                     into_t: LLVMType::Ptr(box tp.into()),
                     into_i: ident.clone(),
@@ -371,18 +371,18 @@ impl ToLLVM for Stmt<'_> {
                 out.lines.push_back(LLVMElem::Assign(
                     i1.clone(),
                     LLVMExpr::Load(
-                        tp.into(),
-                        LLVMType::Ptr(box tp.into()),
+                        tp.clone().into(),
+                        LLVMType::Ptr(box tp.clone().into()),
                         ident.clone(),
                     ),
                 ));
 
                 let i2 = out.new_var_name();
-                out.lines.push_back(LLVMElem::Assign(i2.clone(), LLVMExpr::Add(tp.into(), i1.into(), 1.into())));
+                out.lines.push_back(LLVMElem::Assign(i2.clone(), LLVMExpr::Add(tp.clone().into(), i1.into(), 1.into())));
                 out.lines.push_back(LLVMElem::Store {
-                    val_t: tp.into(),
+                    val_t: tp.clone().into(),
                     val: i2.into(),
-                    into_t: LLVMType::Ptr(box tp.into()),
+                    into_t: LLVMType::Ptr(box tp.clone().into()),
                     into_i: ident.to_owned(),
                 });
             }
@@ -395,18 +395,18 @@ impl ToLLVM for Stmt<'_> {
                 out.lines.push_back(LLVMElem::Assign(
                     i1.clone(),
                     LLVMExpr::Load(
-                        tp.into(),
-                        LLVMType::Ptr(box tp.into()),
+                        tp.clone().into(),
+                        LLVMType::Ptr(box tp.clone().into()),
                         ident.clone(),
                     ),
                 ));
 
                 let i2 = out.new_var_name();
-                out.lines.push_back(LLVMElem::Assign(i2.clone(), LLVMExpr::Sub(tp.into(), i1.into(), 1.into())));
+                out.lines.push_back(LLVMElem::Assign(i2.clone(), LLVMExpr::Sub(tp.clone().into(), i1.into(), 1.into())));
                 out.lines.push_back(LLVMElem::Store {
-                    val_t: tp.into(),
+                    val_t: tp.clone().into(),
                     val: i2.into(),
-                    into_t: LLVMType::Ptr(box tp.into()),
+                    into_t: LLVMType::Ptr(box tp.clone().into()),
                     into_i: ident.to_owned(),
                 });
             }
@@ -418,8 +418,8 @@ impl ToLLVM for Stmt<'_> {
             Stmt::Declare(t, items) => {
                 for item in items {
                     let ident = item.get_ident();
-                    let val = item.transform(out, names, *t).unwrap();
-                    let t: LLVMType = (*t).into();
+                    let val = item.transform(out, names, t.clone()).unwrap();
+                    let t: LLVMType = t.clone().into();
                     out.lines.push_back(LLVMElem::Assign(ident.to_owned(), LLVMExpr::AllocA(t.clone())));
                     out.lines.push_back(LLVMElem::Store {
                         val_t: t.clone(),
@@ -437,7 +437,7 @@ impl ToLLVM for Stmt<'_> {
 }
 
 impl ToLLVM for DeclItem<'_> {
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
         match self {
             DeclItem::NoInit(_) => {
                 let tp: LLVMType = tp.into();
@@ -457,9 +457,9 @@ fn op_expr<F: Fn(LLVMType, LLVMVal, LLVMVal) -> LLVMExpr>(
     names: &mut NameGenerator,
     f: F,
 ) -> Option<LLVMVal> {
-    let tp = e1.tp.unwrap();
-    let v1 = e1.transform(out, names, tp).unwrap();
-    let v2 = e2.transform(out, names, tp).unwrap();
+    let tp = e1.tp.clone().unwrap();
+    let v1 = e1.transform(out, names, tp.clone()).unwrap();
+    let v2 = e2.transform(out, names, tp.clone()).unwrap();
     let i = out.new_var_name();
     out.lines.push_back(LLVMElem::Assign(
         i.clone(),
@@ -476,7 +476,7 @@ fn cmp_expr(
     i_ord: LLVMIOrd,
     f_ord: LLVMFOrd,
 ) -> Option<LLVMVal> {
-    match e1.tp.unwrap() {
+    match e1.tp.clone().unwrap().as_ref() {
         Type::Boolean |
         Type::Integer => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::CmpI(i_ord, tp, v1, v2)),
         Type::Double => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::CmpF(f_ord, tp, v1, v2)),
@@ -488,7 +488,7 @@ impl ToLLVM for Expr<'_> {
     /// By convention, a  Expr should always push its
     /// final calculated value onto the stack last, so
     /// that consecutive operations can find it easily
-    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: Type) -> Option<LLVMVal> {
+    fn transform(&self, out: &mut LLVM, names: &mut NameGenerator, tp: TypeRef) -> Option<LLVMVal> {
         match self {
             Expr::LOr(e1, e2) => {
                 let lab_check_lhs = out.new_lab_name();
@@ -501,7 +501,7 @@ impl ToLLVM for Expr<'_> {
 
                 // First check LHS
                 out.lines.push_back(LLVMElem::Label(lab_check_lhs.clone()));
-                let lhs = e1.transform(out, names, tp).unwrap();
+                let lhs = e1.transform(out, names, tp.clone()).unwrap();
                 out.lines.push_back(LLVMElem::Branch {
                     cond: lhs,
                     if_true: lab_success.clone(),
@@ -549,7 +549,7 @@ impl ToLLVM for Expr<'_> {
 
                 // First check LHS
                 out.lines.push_back(LLVMElem::Label(lab_check_lhs.clone()));
-                let lhs = e1.transform(out, names, tp).unwrap();
+                let lhs = e1.transform(out, names, tp.clone()).unwrap();
                 out.lines.push_back(LLVMElem::Branch {
                     cond: lhs,
                     if_true: lab_check_rhs.clone(),
@@ -601,10 +601,10 @@ impl ToLLVM for Expr<'_> {
             Expr::Sub(e1, e2) => op_expr(e1, e2, out, names, |tp, v1, v2| LLVMExpr::Sub(tp, v1, v2)),
             Expr::Neg(expr) |
             Expr::Not(expr) => {
-                let tp = expr.tp.unwrap();
-                let v = expr.transform(out, names, tp).unwrap();
+                let tp = expr.tp.clone().unwrap();
+                let v = expr.transform(out, names, tp.clone()).unwrap();
                 let i = out.new_var_name();
-                match tp.into() {
+                match tp.clone().into() {
                     LLVMType::F(_) |
                     LLVMType::I(_) => {
                         out.lines.push_back(LLVMElem::Assign(i.clone(), LLVMExpr::Neg(tp.into(), v)));
@@ -623,7 +623,7 @@ impl ToLLVM for Expr<'_> {
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
                     LLVMExpr::Load(
-                        tp.into(),
+                        tp.clone().into(),
                         LLVMType::Ptr(box tp.into()),
                         ident.clone(),
                     ),
@@ -644,16 +644,16 @@ impl ToLLVM for Expr<'_> {
             }
             Expr::FunctionCall(ident, args) => {
                 let args = args.iter()
-                    .map(|expr| (expr.tp.unwrap().into(), expr.transform(out, names, tp).unwrap()))
+                    .map(|expr| (expr.tp.clone().unwrap().into(), expr.transform(out, names, tp.clone()).unwrap()))
                     .collect();
-                match tp {
+                match tp.as_ref() {
                     Type::Void => {
                         out.lines.push_back(LLVMElem::Expr(LLVMExpr::Call(tp.into(), ident.clone(), args)));
                         None
                     }
                     tp => {
                         let i = out.new_var_name();
-                        out.lines.push_back(LLVMElem::Assign(i.clone(), LLVMExpr::Call(tp.into(), ident.clone(), args)));
+                        out.lines.push_back(LLVMElem::Assign(i.clone(), LLVMExpr::Call(tp.clone().into(), ident.clone(), args)));
                         Some(LLVMVal::Ident(i))
                     }
                 }
