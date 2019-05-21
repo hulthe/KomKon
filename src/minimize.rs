@@ -123,6 +123,7 @@ impl Minimize for Expr<'_> {
             Expr::Integer(_) |
             Expr::Boolean(_) |
             Expr::Var(_) |
+            Expr::New(_) |
             Expr::Str(_) => {}
         }
 

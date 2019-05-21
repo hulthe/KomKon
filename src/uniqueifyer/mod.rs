@@ -180,6 +180,7 @@ impl Uniqueify for Expr<'_> {
                 .iter_mut()
                 .for_each(|expr| expr.uniqueify(names, stack)),
 
+            Expr::New(_) |
             Expr::Double(_) |
             Expr::Integer(_) |
             Expr::Boolean(_) |

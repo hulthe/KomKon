@@ -630,6 +630,7 @@ impl ToLLVM for Expr<'_> {
                 ));
                 Some(i.into())
             }
+            Expr::New(_) => unimplemented!("new keyword"),
             Expr::Str(s) => {
                 let (si, tp) = out.put_string_const(&s);
                 let i = out.new_var_name();

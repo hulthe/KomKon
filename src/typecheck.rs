@@ -364,7 +364,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             }
 
             //
-            Expr::New(tp) => return tp,
+            Expr::New(tp) => return Ok(tp.clone()),
 
             // Function call (type of function, check that expression types and length match)
             Expr::FunctionCall(ident, args)
