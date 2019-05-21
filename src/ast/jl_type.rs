@@ -2,6 +2,8 @@ use crate::ast::{FromPair, Rule, ASTError};
 use pest::iterators::Pair;
 use std::fmt::{self, Display, Formatter};
 use std::collections::HashMap;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
@@ -10,9 +12,14 @@ pub enum Type {
     Boolean,
     Void,
     String,
-    Struct { fields: HashMap<String, String> } /* ident => type */,
+    Struct {
+        name: String,
+        fields: HashMap<String, TypeRef>,
+    },
     Pointer(Box<Type>),
 }
+
+pub type TypeRef = Rc<RefCell<Type>>;
 
 pub enum TypeDef {}
 
