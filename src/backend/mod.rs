@@ -26,6 +26,20 @@ impl LLVM {
         out.lines.push_back(LLVMElem::ExtDef("printString".into(), LLVMType::V, vec![LLVMType::Ptr(box LLVMType::I(8))]));
         out.lines.push_back(LLVMElem::ExtDef("readInt".into(), LLVMType::I(32), vec![]));
         out.lines.push_back(LLVMElem::ExtDef("readDouble".into(), LLVMType::F(64), vec![]));
+        out.lines.push_back(LLVMElem::ExtDef("malloc".into(),
+            LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32)]));
+        out.lines.push_back(LLVMElem::ExtDef("calloc".into(),
+            LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32), LLVMType::I(32)]));
+
+        for (ident, type_) in p.types.iter() {
+            match type_.into() {
+                LLVMType::Struct(fields) => {
+                    out.lines.push_back(LLVMElem::TypeDef(ident.clone(), type_.into()));
+                }
+                _ => {}
+            }
+        }
+
         out.lines.push_back(LLVMElem::Empty);
 
         p.transform(&mut out, Type::Void.into());
@@ -418,7 +432,7 @@ impl ToLLVM for Stmt<'_> {
                 for item in items {
                     let ident = item.get_ident();
                     let val = item.transform(out, t.clone()).unwrap();
-                    let t: LLVMType = t.clone().into();
+                    let t: LLVMType = t.into();
                     out.lines.push_back(LLVMElem::Assign(ident.to_owned(), LLVMExpr::AllocA(t.clone())));
                     out.lines.push_back(LLVMElem::Store {
                         val_t: t.clone(),
@@ -627,7 +641,23 @@ impl ToLLVM for Expr<'_> {
                 ));
                 Some(i.into())
             }
-            Expr::New(_) => unimplemented!("new keyword"),
+            Expr::New(n) => {
+                let i = out.new_var_name();
+                let j = out.new_var_name();
+                let tp: LLVMType = n.clone().into();
+                let size = tp.bytes();
+                out.lines.push_back(LLVMElem::Assign(
+                    i.clone(),
+                    LLVMExpr::Call(LLVMType::Ptr(box LLVMType::I(8)), "malloc".into(), vec![
+                        (LLVMType::I(32), LLVMVal::Const(size.to_string())),
+                    ]),
+                ));
+                out.lines.push_back(LLVMElem::Assign(
+                    j.clone(),
+                    LLVMExpr::Bitcast(LLVMType::Ptr(box LLVMType::I(8)), i.into(), LLVMType::Ptr(box tp)),
+                ));
+                Some(j.into())
+            }
             Expr::Str(s) => {
                 let (si, tp) = out.put_string_const(&s);
                 let i = out.new_var_name();

@@ -20,6 +20,8 @@ pub enum LLVMExpr {
 
     Phi(LLVMType, Vec<(LLVMVal, String)>),
 
+    Bitcast(LLVMType, LLVMVal, LLVMType),
+
     Add(LLVMType, LLVMVal, LLVMVal),
     Sub(LLVMType, LLVMVal, LLVMVal),
     Mul(LLVMType, LLVMVal, LLVMVal),
@@ -52,6 +54,7 @@ impl Display for LLVMExpr {
                 write_list(f, ", ", vals.iter(),
                     |f, (val, label)| write!(f, "[ {}, %{} ]", val, label))
             }
+            Bitcast(from_t, val, to_t) => write!(f, "bitcast {} {} to {}", from_t, val, to_t),
             Add(t, i1, i2) => {
                 if t.is_integer_type() {
                     write!(f, "add {} {}, {}", t, i1, i2)

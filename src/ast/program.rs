@@ -58,7 +58,6 @@ impl<'a> Program<'a> {
                         return Err(format!("struct {} declared multiple times", name).into());
                     }
 
-                    println!("Insert struct {}", name);
                     struct_fields.insert(name.clone(), fields);
                     types.insert(name.clone(), Rc::new(Type::Struct { name, fields: HashMap::new() }));
                 }

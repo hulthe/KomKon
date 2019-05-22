@@ -166,7 +166,7 @@ impl<'a> TypeCheckable<'a> for Function<'a> {
     fn check(&mut self, stack: &mut Vec<StackElem>, _: TypeRef) -> Result<TypeRef, Error<'a>> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {
-            push_stack_def(stack, StackType::Variable((type_.clone()).into(), ident.clone()))?;
+            push_stack_def(stack, StackType::Variable(type_.clone().into(), ident.clone()))?;
         }
         self.body.check(stack, self.return_type.clone().into())?;
         pop_scope(stack);

@@ -13,6 +13,20 @@ pub enum LLVMType {
 }
 
 impl LLVMType {
+    pub fn bytes(&self) -> usize {
+        match self {
+            &LLVMType::V => 0,
+            &LLVMType::F(n) |
+            &LLVMType::I(n) => n as usize / 8,
+            // 32 or 64 bits depending on architecure
+            LLVMType::Ptr(_) => std::mem::size_of::<usize>(),
+            LLVMType::Array(n, t) => t.bytes() * n,
+            LLVMType::Struct(fields) => fields.iter()
+                                            .map(|f| f.bytes())
+                                            .sum(),
+        }
+    }
+
     pub fn is_integer_type(&self) -> bool {
         match self {
             LLVMType::I(_) |
@@ -50,14 +64,20 @@ impl From<TypeRef> for LLVMType {
             Type::Void => LLVMType::V,
             Type::Boolean => LLVMType::I(1),
             Type::String => LLVMType::Ptr(box LLVMType::I(8)),
-            Type::Pointer(t) => LLVMType::Ptr(box t.clone().into()),
+            Type::Pointer(t) => LLVMType::Ptr(box t.into()),
             Type::Struct {
                 name,
                 fields,
             } => {
-                LLVMType::Struct(fields.values().map(|t| t.clone().into()).collect())
+                LLVMType::Struct(fields.values().map(|t| t.into()).collect())
             }
         }
+    }
+}
+
+impl From<&TypeRef> for LLVMType {
+    fn from(t: &TypeRef) -> LLVMType {
+        t.clone().into()
     }
 }
 
