@@ -364,8 +364,8 @@ impl ToLLVM for Stmt<'_> {
                 block.transform(out, tp);
             }
 
-            Stmt::Assignment(VarRef::Deref(_, _), _expr)
-                => unimplemented!("Assignment pointer deref"),
+            Stmt::Assignment(d@VarRef::Deref(_, _), _expr)
+                => unimplemented!("Assignment pointer deref: {:?}", d),
             Stmt::Assignment(VarRef::Ident(ident), expr) => {
                 let tp = expr.tp.clone().unwrap();
                 let val = expr.transform(out, tp.clone()).unwrap();
