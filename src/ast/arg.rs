@@ -10,7 +10,7 @@ impl<'a> FromPair<'a> for Arg {
         let mut ident = None;
         for pair in pair.into_inner() {
             match pair.as_rule() {
-                Rule::Type => type_ = Some(types.get(pair.as_str()).unwrap().clone()),
+                Rule::Type => type_ = Some(types.get_or(pair.as_str())?.clone()),
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 _ => Err("No matching rule for Arg")?,
             }

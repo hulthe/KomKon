@@ -86,7 +86,7 @@ impl<'a> Expr<'a> {
             [(Rule::Expr5, expp)] |
             [(Rule::Expr6, expp)] => Expr::from_pair(expp.clone(), types)?,
 
-            [(Rule::New, _), (Rule::Type, tp)] => Expr::New(types.get(tp.as_str()).unwrap().clone()/* FIXME: unwrap */),
+            [(Rule::New, _), (Rule::Type, tp)] => Expr::New(types.get_or(tp.as_str())?.clone()),
 
             [(Rule::Double, dblp)] => Expr::Double(dblp.as_str().parse().unwrap()),
 
@@ -125,7 +125,7 @@ impl<'a> Expr<'a> {
             }
 
             [(Rule::LPar, _), (Rule::Type, tp), (Rule::RPar, _), (Rule::Null, _)]
-            => Expr::NullPtr(types.get(tp.as_str()).unwrap().clone()/* FIXME: unwrap */),
+            => Expr::NullPtr(types.get_or(tp.as_str())?.clone()),
 
             [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
             => Expr::from_pair(expp.clone(), types)?,

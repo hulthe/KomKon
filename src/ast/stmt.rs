@@ -55,7 +55,7 @@ impl<'a> FromPair<'a> for Stmt<'a> {
                 let items = items.into_iter()
                     .map(|(_, pair)| DeclItem::from_pair(pair.clone(), types))
                     .collect::<Result<Vec<_>, ASTError>>()?;
-                Stmt::Declare(types.get(typp.as_str()).unwrap().clone(), items)
+                Stmt::Declare(types.get_or(typp.as_str())?.clone(), items)
             }
 
             [] => Stmt::Empty,

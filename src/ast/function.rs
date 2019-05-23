@@ -17,7 +17,7 @@ impl<'a> FromPair<'a> for Function<'a> {
         let mut block = None;
         for pair in pair.into_inner().filter(|pair| pair.as_rule() != Rule::WHITESPACE) {
             match pair.as_rule() {
-                Rule::Type => type_ = Some(types.get(pair.as_str()).unwrap().clone()),
+                Rule::Type => type_ = Some(types.get_or(pair.as_str())?.clone()),
                 Rule::Ident => ident = Some(pair.as_str().to_owned()),
                 Rule::Arg => args.push(Arg::from_pair(pair, types)?),
                 Rule::Blk => block = Some(Node::from_pair(pair, types)?),
