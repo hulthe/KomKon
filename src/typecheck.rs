@@ -366,6 +366,13 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             //
             Expr::Var(var_ref) => var_ref.check(stack, func_type.clone()),
 
+            Expr::NullPtr(tp) => {
+                match tp.as_ref() {
+                    Type::Pointer(_) => Ok(tp),
+                    _ => Err(unimplemented!("not a pointer type"))
+                }
+            }
+
             Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 
             // Function call (type of function, check that expression types and length match)
@@ -399,11 +406,13 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
 impl<'a> TypeCheckable<'a> for VarRef<'a> {
     fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
         match self {
-            VarRef::Ident(ident) => { return match search_stack(stack, ident) {
-                Some(StackType::Variable(t, _)) => Ok(t.clone()),
-                Some(StackType::Function(t, ..)) => Ok(t.clone()),
-                _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
-            }}
+            VarRef::Ident(ident) => {
+                return match search_stack(stack, ident) {
+                    Some(StackType::Variable(t, _)) => Ok(t.clone()),
+                    Some(StackType::Function(t, ..)) => Ok(t.clone()),
+                    _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
+                };
+            }
             VarRef::Deref(lhs, ident) => {
                 match lhs.check(stack, func_type)?.as_ref() {
                     Type::Pointer(t) => {

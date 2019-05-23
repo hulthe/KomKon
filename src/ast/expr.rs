@@ -24,7 +24,7 @@ pub enum Expr<'a> {
     Integer(i32),
     Boolean(bool),
     Var(VarRef<'a>),
-    // TODO: Nullptrs
+    NullPtr(TypeRef),
     Str(String),
     FunctionCall(String, Vec<Node<'a, Expr<'a>>>),
 }
@@ -125,10 +125,13 @@ impl<'a> Expr<'a> {
             }
 
             [(Rule::LPar, _), (Rule::Type, tp), (Rule::RPar, _), (Rule::Null, _)]
-            => Err("null pointers are not yet implemented.")?, // TODO
+            => Expr::NullPtr(types.get(tp.as_str()).unwrap().clone()/* FIXME: unwrap */),
 
             [(Rule::LPar, _), (Rule::Expr, expp), (Rule::RPar, _)]
             => Expr::from_pair(expp.clone(), types)?,
+
+            [(Rule::Variable, v)] =>
+                Expr::Var(VarRef::from_pair(v.clone(), types)?),
 
             [(Rule::Ident, idnp), (Rule::LPar, _), exprs.., (Rule::RPar, _)] => {
                 let exprs = exprs.into_iter()
@@ -137,8 +140,6 @@ impl<'a> Expr<'a> {
                     .collect::<Result<Vec<_>, ASTError>>()?;
                 Expr::FunctionCall(idnp.as_str().to_owned(), exprs)
             }
-
-            [(Rule::Variable, v)] => Expr::Var(VarRef::from_pair(v.clone(), types)?),
 
             _ => Err("No matching rule for Expr")?,
         })
