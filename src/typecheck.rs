@@ -88,7 +88,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidArgumentCount { expected, got } => write!(f, "Invalid argument count. Expected {}. Got {}", expected, got),
             ErrorKind::InvalidMainDef => write!(f, "Invalid definition of \"main\".\nMust have return type int and no parameters."),
             ErrorKind::MissingMain => write!(f, "Function \"main\" must be defined."),
-            ErrorKind::InvalidField => write!(f, "Missing field name"),
+            ErrorKind::InvalidField => write!(f, "Struct field does not exist"),
             ErrorKind::InvalidFieldAccess => write!(f, "Accessing field of non-struct"),
             ErrorKind::InvalidDeref => write!(f, "Tried to deref a non-pointer type"),
         }

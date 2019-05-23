@@ -19,7 +19,10 @@ pub enum ASTError {
     /// A string literal contained an invalid escape sequence.
     InvalidEscapeSequence(char),
 
+    /// Tried to declare a type with the same name as one previously defined.
     TypeAlreadyDeclared(String),
+
+    /// Tried to reference a type which did not exist.
     NonExistentType(String),
 }
 
