@@ -18,6 +18,7 @@ impl<'a> Program<'a> {
     pub fn parse(raw: &'a str) -> Result<Self, ASTError> {
         let mut parse = JavaletteParser::parse(Rule::Program, raw)?;
         let program = parse.next().unwrap();
+        // TODO: replace hashmap with vector to retain ordering
         let mut types: TypeMap = HashMap::new();
         let mut struct_fields: HashMap<String, HashMap<String, String>> = HashMap::new();
 

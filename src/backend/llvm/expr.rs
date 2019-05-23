@@ -41,7 +41,7 @@ impl Display for LLVMExpr {
             AllocA(tp) => write!(f, "alloca {}", tp),
             Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
             GetElementPtr(ptr_type, ptr, indices) => {
-                write!(f, "getelementptr {0}, {0}* @{1}", ptr_type, ptr)?;
+                write!(f, "getelementptr {0}, {0}* %{1}", ptr_type, ptr)?;
                 for (t, v) in indices {
                     write!(f, ", {} {}", t, v)?;
                 }

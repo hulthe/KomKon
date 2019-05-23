@@ -89,7 +89,13 @@ impl From<Type> for LLVMType {
             Type::Void => LLVMType::V,
             Type::Boolean => LLVMType::I(1),
             Type::String => LLVMType::Ptr(box LLVMType::I(8)),
-            _ => unimplemented!(),
+            Type::Pointer(t) => LLVMType::Ptr(box t.into()),
+            Type::Struct {
+                name,
+                fields,
+            } => {
+                LLVMType::Struct(fields.iter().map(|(_, t)| t.into()).collect())
+            }
         }
     }
 }

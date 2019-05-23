@@ -627,16 +627,19 @@ impl ToLLVM for Expr<'_> {
             &Expr::Double(f) => Some(f.into()),
             &Expr::Integer(i) => Some(i.into()),
             &Expr::Boolean(b) => Some(b.into()),
-            Expr::Var(VarRef::Deref(_, _))
-            => unimplemented!("Code gen not implemented for pointer deref"),
-            Expr::Var(VarRef::Ident(ident)) => {
+            Expr::Var(var_ref) => {
+                let ptr = match var_ref.transform(out, tp.clone()) {
+                    Some(LLVMVal::Ident(s)) => s,
+                    _ => unreachable!(),
+                };
+
                 let i = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
                     LLVMExpr::Load(
                         tp.clone().into(),
                         LLVMType::Ptr(box tp.into()),
-                        ident.clone(),
+                        ptr,
                     ),
                 ));
                 Some(i.into())
@@ -699,29 +702,54 @@ impl ToLLVM for Expr<'_> {
     fn transform(&self, out: &mut LLVM, tp: TypeRef) -> Option<LLVMVal> {
         match self {
             VarRef::Deref(lhs, ident) => {
-                let i = out.new_var_name();
+                let lhs_tp = lhs.tp.as_ref().unwrap().clone();
+
+                let lhs_p = match lhs.transform(out, lhs_tp.clone()) {
+                    Some(LLVMVal::Ident(s)) => s,
+                    _ => unreachable!(),
+                };
+                eprintln!("ident ->{} type {}", ident, tp);
+
+                let lhs = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
-                    i.clone(),
+                    lhs.clone(),
                     LLVMExpr::Load(
-                        tp.clone().into(),
-                        LLVMType::Ptr(box tp.clone().into()),
-                        ident.clone(),
+                        lhs_tp.clone().into(),
+                        LLVMType::Ptr(box lhs_tp.clone().into()),
+                        lhs_p,
                     ),
                 ));
 
-                unimplemented!()
+                match lhs_tp.as_ref() {
+                    Type::Pointer(tp) => match tp.as_ref() {
+                        Type::Struct { fields, .. } => {
+                            let (index, _): (usize, LLVMType) = fields.iter()
+                                .enumerate()
+                                .find(|(_, (name, _))| name == ident)
+                                .map(|(i, (_, tp))| (i, tp.into()))
+                                .expect("Struct field did not exist");
+
+                            let j = out.new_var_name();
+
+                            out.lines.push_back(LLVMElem::Assign(
+                                j.clone(),
+                                LLVMExpr::GetElementPtr(tp.clone().into(), lhs, vec![
+                                    (LLVMType::I(32), 0.into()), // {..}* -> {..},
+                                    // Index into the nth field of the structure: {i8, i8, ..} -> i8
+                                    (LLVMType::I(32), (index as i32).into()),
+                                ]),
+                            ));
+
+                            Some(j.into())
+                        }
+                        _ => panic!("Field access on non-struct"),
+                    }
+                    _ => panic!("Attempt to deref non-pointer"),
+                }
             }
+
             VarRef::Ident(ident) => {
-                let i = out.new_var_name();
-                out.lines.push_back(LLVMElem::Assign(
-                    i.clone(),
-                    LLVMExpr::Load(
-                        tp.clone().into(),
-                        LLVMType::Ptr(box tp.into()),
-                        ident.clone(),
-                    ),
-                ));
-                Some(i.into())
+                Some(ident.clone().into())
             }
         }
     }
