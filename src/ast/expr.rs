@@ -23,7 +23,7 @@ pub enum Expr<'a> {
     Double(f64),
     Integer(i32),
     Boolean(bool),
-    Var(VarRef),
+    Var(VarRef<'a>),
     // TODO: Nullptrs
     Str(String),
     FunctionCall(String, Vec<Node<'a, Expr<'a>>>),

@@ -690,10 +690,10 @@ impl ToLLVM for Expr<'_> {
     }
 }
 
-impl ToLLVM for VarRef {
+impl ToLLVM for VarRef<'_> {
     fn transform(&self, out: &mut LLVM, tp: TypeRef) -> Option<LLVMVal> {
         match self {
-            VarRef::Deref(ident, rhs) => {
+            VarRef::Deref(lhs, ident) => {
                 let i = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
@@ -704,27 +704,7 @@ impl ToLLVM for VarRef {
                     ),
                 ));
 
-                let mut curr = rhs;
-                let mut curr_fields = match tp.as_ref() {
-                    Type::Struct { fields, .. } => fields,
-                    _ => panic!("Attempting to access field of a non-struct pointer"),
-                };
-
-                loop {
-                    match rhs.as_ref() {
-                        VarRef::Ident(ident) => {
-                            match curr_fields.iter().enumerate().find(|(_, (name, _))| name == ident) {
-                                Some((i, (_, tp))) => {
-
-                                }
-                                None => panic!("Attempting to access non-existing field of struct"),
-                            }
-                        }
-                        VarRef::Deref(ident, rhs) => {
-
-                        }
-                    }
-                }
+                unimplemented!()
             }
             VarRef::Ident(ident) => {
                 let i = out.new_var_name();

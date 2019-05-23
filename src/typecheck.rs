@@ -364,15 +364,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             => Ok(Type::String.into()),
 
             //
-            Expr::Var(var_ref @ VarRef::Deref(_, _)) => {
-                var_ref.check(stack, func_type.clone())
-            }
-            Expr::Var(VarRef::Ident(ident))
-            => match search_stack(stack, ident) {
-                Some(StackType::Variable(t, _)) => Ok(t.clone()),
-                Some(StackType::Function(t, ..)) => Ok(t.clone()),
-                _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
-            }
+            Expr::Var(var_ref) => var_ref.check(stack, func_type.clone()),
 
             Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 
@@ -404,45 +396,29 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
     }
 }
 
-impl<'a> TypeCheckable<'a> for VarRef {
+impl<'a> TypeCheckable<'a> for VarRef<'a> {
     fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
-        let (ident, rhs) = match self {
-            VarRef::Ident(_) => panic!("should not be called on VarRef::Ident"),
-            VarRef::Deref(ident, rhs) => (ident, rhs),
-        };
-
-        let mut curr_type: &Type = match search_stack(stack, ident) {
-            Some(StackType::Variable(t, _)) => t.as_ref(),
-            // TODO: Other error if attempting to deref a function
-            _ => return Err(Error::NoContext(ErrorKind::Undeclared {}))
-        };
-        let mut next_var_ref: &VarRef = rhs;
-
-        loop {
-            // test if the current type is a struct
-            if let Type::Pointer(t) = curr_type {
-                if let Type::Struct { name, fields } = t.as_ref() {
-                    let next_ident = next_var_ref.ident();
-
-                    // test if the struct contains a field with that name
-                    if let Some((_, next_type)) = fields.iter().find(|(ident, _)| ident == next_ident) {
-                        match next_var_ref {
-                            VarRef::Deref(ident, next) => {
-                                curr_type = next_type;
-                                next_var_ref = next;
+        match self {
+            VarRef::Ident(ident) => { return match search_stack(stack, ident) {
+                Some(StackType::Variable(t, _)) => Ok(t.clone()),
+                Some(StackType::Function(t, ..)) => Ok(t.clone()),
+                _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
+            }}
+            VarRef::Deref(lhs, ident) => {
+                match lhs.check(stack, func_type)?.as_ref() {
+                    Type::Pointer(t) => {
+                        match t.as_ref() {
+                            Type::Struct { name, fields } => {
+                                match fields.iter().find(|(name, _)| name == ident) {
+                                    Some((_, tp)) => Ok(tp.clone()),
+                                    None => unimplemented!("Struct missing field err"),
+                                }
                             }
-                            VarRef::Ident(ident) => {
-                                return Ok(next_type.clone().into());
-                            }
+                            _ => unimplemented!("Field access on non-struct err"),
                         }
-                    } else {
-                        return Err(unimplemented!());    // TODO err, struct missing field
                     }
-                } else {
-                    return Err(unimplemented!());    // TODO err, struct missing field
+                    _ => unimplemented!("Deref non-pointer err"),
                 }
-            } else {
-                return Err(unimplemented!());    // TODO err, deref non-struct
             }
         }
     }

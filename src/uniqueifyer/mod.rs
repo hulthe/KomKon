@@ -113,18 +113,13 @@ impl Uniqueify for Stmt<'_> {
 
             Stmt::Block(blk) => blk.uniqueify(names, stack),
 
-            Stmt::Assignment(VarRef::Deref(ident, _), expr) |
-            Stmt::Assignment(VarRef::Ident(ident), expr) => {
+            Stmt::Assignment(var_ref, expr) => {
+                var_ref.uniqueify(names, stack);
                 expr.uniqueify(names, stack);
-                swap_name(ident, stack);
             }
 
-            Stmt::Increment(VarRef::Deref(ident, _)) |
-            Stmt::Increment(VarRef::Ident(ident)) |
-            Stmt::Decrement(VarRef::Deref(ident, _)) |
-            Stmt::Decrement(VarRef::Ident(ident)) => {
-                swap_name(ident, stack);
-            }
+            Stmt::Increment(var_ref) |
+            Stmt::Decrement(var_ref) => var_ref.uniqueify(names, stack),
 
             Stmt::Declare(_, items) => {
                 items.iter_mut()
@@ -153,8 +148,7 @@ impl Uniqueify for Stmt<'_> {
 impl Uniqueify for Expr<'_> {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         match self {
-            Expr::Var(VarRef::Ident(ident)) |
-            Expr::Var(VarRef::Deref(ident, _)) => swap_name(ident, stack),
+            Expr::Var(var_ref) => var_ref.uniqueify(names, stack),
 
             Expr::LOr(e1, e2) |
             Expr::LAnd(e1, e2) |
@@ -186,6 +180,15 @@ impl Uniqueify for Expr<'_> {
             Expr::Boolean(_) |
             Expr::Str(_) => {}
 
+        }
+    }
+}
+
+impl Uniqueify for VarRef<'_> {
+    fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
+        match self {
+            VarRef::Ident(ident) => swap_name(ident, stack),
+            VarRef::Deref(lhs, _field_name) => lhs.uniqueify(names, stack),
         }
     }
 }

@@ -71,7 +71,7 @@ Type = @{
 }
 FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
-Variable = { (Ident ~ Deref ~ Variable) | Ident }
+Variable = { Ident ~ (Deref ~ Ident)* }
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |

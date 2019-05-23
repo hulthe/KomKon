@@ -1,34 +1,27 @@
-use crate::ast::{Rule, FromPair, TypeMap, ASTError};
+use crate::ast::{Rule, FromPair, TypeMap, Node, ASTError};
 use pest::iterators::Pair;
-use crate::ast::expr::Expr;
 use std::collections::vec_deque::VecDeque;
-use crate::ast::jl_type::Type;
 
 #[derive(Debug)]
-pub enum VarRef {
-    Deref(String, Box<VarRef>),
+pub enum VarRef<'a> {
+    Deref(Node<'a, VarRef<'a>>, String),
     Ident(String),
 }
 
-impl VarRef {
+impl<'a> VarRef<'a> {
     pub fn ident(&self) -> &str {
         match self {
-            VarRef::Deref(name, _) |
+            VarRef::Deref(_, name) |
             VarRef::Ident(name) => name,
         }
     }
-}
 
-impl FromPair<'_> for VarRef {
-    fn from_pair(pair: Pair<'_, Rule>, types: &TypeMap) -> Result<Self, ASTError> {
-        let rules = pair.into_inner()
-            .map(|pair| (pair.as_rule(), pair))
-            .collect::<Vec<_>>();
+    fn from_pair_rec(slice: &'a str, rules: &[(Rule, Pair<'a, Rule>)], types: &TypeMap) -> Result<Self, ASTError> {
         Ok(match &rules[..] {
-            [(Rule::Ident, i), (Rule::Deref, _), (Rule::Variable, v)]
+            [head.., (Rule::Deref, _), (Rule::Ident, i)]
             => VarRef::Deref(
+                Node::new(Self::from_pair_rec(slice, head, types)?, slice),
                 i.as_str().to_owned(),
-                box VarRef::from_pair(v.clone(), types)?,
             ),
             [(Rule::Ident, i)] => VarRef::Ident(i.as_str().to_owned()),
 
@@ -37,18 +30,12 @@ impl FromPair<'_> for VarRef {
     }
 }
 
-/// Flattens a recursive VarRef-structure into a Vec<String>
-fn flatten_var_ref(vr: VarRef) -> (VecDeque<String>) {
-    match vr {
-        VarRef::Deref(ident, next) => {
-            let mut vec = flatten_var_ref(*next);
-            vec.push_front(ident);
-            return vec;
-        }
-        VarRef::Ident(id) => {
-            let mut vec = VecDeque::new();
-            vec.push_front(id);
-            return vec;
-        }
+impl<'a> FromPair<'a> for VarRef<'a> {
+    fn from_pair(pair: Pair<'a, Rule>, types: &TypeMap) -> Result<Self, ASTError> {
+        let slice = pair.as_str();
+        let rules = pair.into_inner()
+            .map(|pair| (pair.as_rule(), pair))
+            .collect::<Vec<_>>();
+        Self::from_pair_rec(slice, &rules[..], types)
     }
 }
