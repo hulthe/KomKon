@@ -1,5 +1,4 @@
 use crate::ast::{Type, TypeRef};
-use crate::util::write_list;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Clone, Debug)]

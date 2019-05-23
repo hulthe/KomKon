@@ -1,6 +1,5 @@
 use crate::ast::{Rule, FromPair, TypeMap, Node, ASTError};
 use pest::iterators::Pair;
-use std::collections::vec_deque::VecDeque;
 
 #[derive(Debug)]
 pub enum VarRef<'a> {

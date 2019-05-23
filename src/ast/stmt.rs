@@ -1,4 +1,4 @@
-use crate::ast::{Rule, FromPair, TypeRef, Type, TypeMap, Node, Blk, Expr, DeclItem, VarRef, ASTError};
+use crate::ast::{Rule, FromPair, TypeRef, TypeMap, Node, Blk, Expr, DeclItem, VarRef, ASTError};
 use pest::iterators::Pair;
 
 #[derive(Debug)]

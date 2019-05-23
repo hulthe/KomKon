@@ -1,7 +1,4 @@
-use crate::ast::{FromPair, TypeMap, Rule, ASTError};
-use pest::iterators::Pair;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone)]
