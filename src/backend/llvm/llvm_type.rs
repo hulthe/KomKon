@@ -69,7 +69,7 @@ impl From<TypeRef> for LLVMType {
                 name,
                 fields,
             } => {
-                LLVMType::Struct(fields.values().map(|t| t.into()).collect())
+                LLVMType::Struct(fields.iter().map(|(_, t)| t.into()).collect())
             }
         }
     }

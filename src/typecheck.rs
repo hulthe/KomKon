@@ -425,11 +425,7 @@ impl<'a> TypeCheckable<'a> for VarRef {
                     let next_ident = next_var_ref.ident();
 
                     // test if the struct contains a field with that name
-                    if fields.contains_key(next_ident) {
-                        let next_type = match fields.get(next_ident) {
-                            Some(val) => val,
-                            None => panic!("field missing type somehow"),
-                        };
+                    if let Some((_, next_type)) = fields.iter().find(|(ident, _)| ident == next_ident) {
                         match next_var_ref {
                             VarRef::Deref(ident, next) => {
                                 curr_type = next_type;

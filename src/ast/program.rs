@@ -59,7 +59,7 @@ impl<'a> Program<'a> {
                     }
 
                     struct_fields.insert(name.clone(), fields);
-                    types.insert(name.clone(), Rc::new(Type::Struct { name, fields: HashMap::new() }));
+                    types.insert(name.clone(), Rc::new(Type::Struct { name, fields: vec![] }));
                 }
 
                 _ => rest.push(pair)

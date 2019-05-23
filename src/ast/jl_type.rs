@@ -13,7 +13,7 @@ pub enum Type {
     String,
     Struct {
         name: String,
-        fields: HashMap<String, TypeRef>,
+        fields: Vec<(String, TypeRef)>,
     },
     Pointer(TypeRef),
 }
