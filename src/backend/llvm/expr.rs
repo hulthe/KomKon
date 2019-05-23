@@ -10,7 +10,7 @@ pub enum LLVMExpr {
     /// Load a value from an address
     Load(LLVMType, LLVMType, String),
 
-    GetElementPtr(LLVMType, String, Vec<(LLVMType, LLVMVal)>),
+    GetElementPtr(LLVMType, LLVMVal, Vec<(LLVMType, LLVMVal)>),
 
     /// Compare two integers.
     CmpI(LLVMIOrd, LLVMType, LLVMVal, LLVMVal),
@@ -41,7 +41,7 @@ impl Display for LLVMExpr {
             AllocA(tp) => write!(f, "alloca {}", tp),
             Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
             GetElementPtr(ptr_type, ptr, indices) => {
-                write!(f, "getelementptr {0}, {0}* %{1}", ptr_type, ptr)?;
+                write!(f, "getelementptr {0}, {0}* {1}", ptr_type, ptr)?;
                 for (t, v) in indices {
                     write!(f, ", {} {}", t, v)?;
                 }

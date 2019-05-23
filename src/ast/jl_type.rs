@@ -18,6 +18,21 @@ pub enum Type {
     Pointer(TypeRef),
 }
 
+impl Type {
+    pub fn byte_size(&self) -> usize {
+        match self {
+            &Type::Void => 0,
+            &Type::Boolean => 1,
+            &Type::Integer => 4,
+            &Type::Double => 8,
+            // 32 or 64 bits depending on architecure
+            Type::String |
+            Type::Pointer(_) => std::mem::size_of::<usize>(),
+            Type::Struct{fields, ..} => fields.iter().map(|(_, t)| t.byte_size()).sum(),
+        }
+    }
+}
+
 impl PartialEq for Type {
     fn eq(&self, other: &Type) -> bool {
         match (self, other) {

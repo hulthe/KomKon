@@ -32,9 +32,15 @@ impl LLVM {
                                              LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32), LLVMType::I(32)]));
 
         for (ident, type_) in p.types.iter() {
-            match type_.into() {
-                LLVMType::Struct(fields) => {
-                    out.lines.push_back(LLVMElem::TypeDef(ident.clone(), type_.into()));
+            match type_.as_ref() {
+                Type::Struct {
+                    fields,
+                    ..
+                } => {
+                    out.lines.push_back(LLVMElem::TypeDef(
+                        ident.clone(),
+                        fields.iter().map(|(_, t)| t.into()).collect(),
+                    ));
                 }
                 _ => {}
             }
@@ -500,6 +506,7 @@ fn cmp_expr(
 ) -> Option<LLVMVal> {
     match e1.tp.clone().unwrap().as_ref() {
         Type::Boolean |
+        Type::Pointer(_) |
         Type::Integer => op_expr(e1, e2, out, |tp, v1, v2| LLVMExpr::CmpI(i_ord, tp, v1, v2)),
         Type::Double => op_expr(e1, e2, out, |tp, v1, v2| LLVMExpr::CmpF(f_ord, tp, v1, v2)),
         tp => panic!("Invalid type: can't compare \"{}\"s", tp),
@@ -657,14 +664,14 @@ impl ToLLVM for Expr<'_> {
             }
 
             Expr::NullPtr(_) => {
-                Some(0.into())    // TODO ¯\_(ツ)_/¯
+                Some(LLVMVal::Const("null".into()))
             }
 
             Expr::New(n) => {
                 let i = out.new_var_name();
                 let j = out.new_var_name();
+                let size = tp.byte_size();
                 let tp: LLVMType = n.clone().into();
-                let size = tp.bytes();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
                     LLVMExpr::Call(LLVMType::Ptr(box LLVMType::I(8)), "malloc".into(), vec![
@@ -682,7 +689,7 @@ impl ToLLVM for Expr<'_> {
                 let i = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
-                    LLVMExpr::GetElementPtr(tp.clone(), si.to_owned(), vec![
+                    LLVMExpr::GetElementPtr(tp.clone(), LLVMVal::Global(si.to_owned()), vec![
                         (LLVMType::I(32), 0.into()), // [i8 x n]* -> [i8 x n]
                         (LLVMType::I(32), 0.into()), // [i8 x n]  -> i8*
                     ]),
@@ -719,7 +726,6 @@ impl ToLLVM for Expr<'_> {
                     Some(LLVMVal::Ident(s)) => s,
                     _ => unreachable!(),
                 };
-                eprintln!("ident ->{} type {}", ident, tp);
 
                 let lhs = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -744,7 +750,7 @@ impl ToLLVM for Expr<'_> {
 
                             out.lines.push_back(LLVMElem::Assign(
                                 j.clone(),
-                                LLVMExpr::GetElementPtr(tp.clone().into(), lhs, vec![
+                                LLVMExpr::GetElementPtr(tp.clone().into(), lhs.into(), vec![
                                     (LLVMType::I(32), 0.into()), // {..}* -> {..},
                                     // Index into the nth field of the structure: {i8, i8, ..} -> i8
                                     (LLVMType::I(32), (index as i32).into()),

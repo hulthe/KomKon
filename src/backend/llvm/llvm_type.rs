@@ -9,24 +9,13 @@ pub enum LLVMType {
     V,
     Array(usize, Box<LLVMType>),
     Ptr(Box<LLVMType>),
-    Struct(Vec<LLVMType>),
+    Struct{
+        name: String,
+        size: usize,
+    },
 }
 
 impl LLVMType {
-    pub fn bytes(&self) -> usize {
-        match self {
-            &LLVMType::V => 0,
-            &LLVMType::F(n) |
-            &LLVMType::I(n) => n as usize / 8,
-            // 32 or 64 bits depending on architecure
-            LLVMType::Ptr(_) => std::mem::size_of::<usize>(),
-            LLVMType::Array(n, t) => t.bytes() * n,
-            LLVMType::Struct(fields) => fields.iter()
-                                            .map(|f| f.bytes())
-                                            .sum(),
-        }
-    }
-
     pub fn is_integer_type(&self) -> bool {
         match self {
             LLVMType::I(_) |
@@ -46,12 +35,12 @@ impl LLVMType {
 
     pub fn default_value(&self) -> &'static str {
         match self {
+            LLVMType::Ptr(_) => "null",
             LLVMType::I(_) => "0",
             LLVMType::F(_) => "0.0",
             LLVMType::V => "void",
-            LLVMType::Struct(_) |
-            LLVMType::Array(_, _) |
-            LLVMType::Ptr(_) => unimplemented!(),
+            LLVMType::Struct{..} |
+            LLVMType::Array(_, _) => unimplemented!(),
         }
     }
 }
@@ -69,7 +58,10 @@ impl From<TypeRef> for LLVMType {
                 name,
                 fields,
             } => {
-                LLVMType::Struct(fields.iter().map(|(_, t)| t.into()).collect())
+                LLVMType::Struct {
+                    name: name.clone(),
+                    size: fields.iter().map(|(_, t)| t.byte_size()).sum(),
+                }
             }
         }
     }
@@ -94,7 +86,10 @@ impl From<Type> for LLVMType {
                 name,
                 fields,
             } => {
-                LLVMType::Struct(fields.iter().map(|(_, t)| t.into()).collect())
+                LLVMType::Struct{
+                    name: name.clone(),
+                    size: fields.iter().map(|(_, t)| t.byte_size()).sum(),
+                }
             }
         }
     }
@@ -112,11 +107,7 @@ impl Display for LLVMType {
             V => write!(f, "void")?,
             Array(len, box t) => write!(f, "[{} x {}]", len, t)?,
             Ptr(box t) => write!(f, "{}*", t)?,
-            Struct(fields) => {
-                write!(f, "{{ ")?;
-                write_list(f, ", ", fields.iter(), |f, field| write!(f, "{}", field))?;
-                write!(f, " }}")?;
-            }
+            Struct{name, ..} => write!(f, "%{}", name)?,
         }
         Ok(())
     }

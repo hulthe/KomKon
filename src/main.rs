@@ -47,17 +47,11 @@ where E: CompilerError {
 }
 
 fn compile(source_code: &str) -> Result<(), ()> {
-    eprintln!("parse");
     let mut p = step(source_code, source_code, Program::parse)?;
-    eprintln!("typecheck");
     step(&mut p, source_code, type_check)?;
-    eprintln!("minimize");
     p.minimize();
-    eprintln!("returncheck");
     step(&p, source_code, return_check)?;
-    eprintln!("uniqueify");
     uniqueify(&mut p);
-    eprintln!("llvm");
     let llvm = LLVM::from_program(&p);
 
     {

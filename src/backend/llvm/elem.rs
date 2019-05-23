@@ -11,7 +11,7 @@ pub enum LLVMElem {
     TopDef(String, LLVMType, Vec<(LLVMType, String)>),
 
     /// Example: %T = type {i32, i32}
-    TypeDef(String, LLVMType),
+    TypeDef(String, Vec<LLVMType>),
 
     /// Example: `declare i32 @readInt()`
     ExtDef(String, LLVMType, Vec<LLVMType>),
@@ -78,7 +78,11 @@ impl Display for LLVMElem {
                 writeln!(f, ") {{")
             },
 
-            TypeDef(ident, type_) => writeln!(f, "%{} = type {}", ident, type_),
+            TypeDef(ident, types) => {
+                write!(f, "%{} = type {{", ident)?;
+                write_list(f, ", ", types.iter(), |f, t| write!(f, "{}", t))?;
+                writeln!(f, "}}")
+            }
 
             ExtDef(ident, ret, params) => {
                 write!(f, "declare {} @{}(", ret, ident)?;
