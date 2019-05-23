@@ -226,15 +226,8 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
                 return Err(Error::NoContext(ErrorKind::Undeclared {}));
             }
 
-            Stmt::Increment(VarRef::Deref(_, _)) |
-            Stmt::Decrement(VarRef::Deref(_, _)) => unimplemented!("Pointer deref typecheck"),
-
-            Stmt::Increment(VarRef::Ident(ident)) | Stmt::Decrement(VarRef::Ident(ident))
-            => match search_stack(stack, ident) {
-                Some(StackType::Variable(type_, _ident))
-                => { assert_type(Type::Integer.into(), type_.clone())?; }
-
-                _ => return Err(Error::NoContext(ErrorKind::Undeclared {}))
+            Stmt::Increment(var_ref) | Stmt::Decrement(var_ref) => {
+                    assert_type(Type::Integer.into(), var_ref.check(stack, func_type)?)?;
             }
 
             Stmt::Declare(decl_type, decl_items)

@@ -113,7 +113,7 @@ impl Display for LLVMExpr {
                     LLVMType::F(_) => {
                         write!(f, "fsub {} 0.0, {}", t, i)
                     }
-                    _ => unimplemented!(),
+                    _ => panic!("Attempting to negate non-number type {}", t),
                 }
             }
             Call(tp, ident, args) => {

@@ -364,21 +364,28 @@ impl ToLLVM for Stmt<'_> {
                 block.transform(out, tp);
             }
 
-            Stmt::Assignment(d @ VarRef::Deref(_, _), _expr)
-            => unimplemented!("Assignment pointer deref: {:?}", d),
-            Stmt::Assignment(VarRef::Ident(ident), expr) => {
+            Stmt::Assignment(var_ref, expr) => {
+                let ptr = match var_ref.transform(out, tp.clone()) {
+                    Some(LLVMVal::Ident(s)) => s,
+                    _ => unreachable!(),
+                };
+
                 let tp = expr.tp.clone().unwrap();
                 let val = expr.transform(out, tp.clone()).unwrap();
                 out.lines.push_back(LLVMElem::Store {
                     val_t: tp.clone().into(),
                     val,
                     into_t: LLVMType::Ptr(box tp.into()),
-                    into_i: ident.clone(),
+                    into_i: ptr,
                 });
             }
 
-            Stmt::Increment(VarRef::Deref(_, _)) => unimplemented!("Increment pointer deref"),
-            Stmt::Increment(VarRef::Ident(ident)) => {
+            Stmt::Increment(var_ref) => {
+                let ptr = match var_ref.transform(out, tp.clone()) {
+                    Some(LLVMVal::Ident(s)) => s,
+                    _ => unreachable!(),
+                };
+
                 let tp = Type::Integer;
                 let i1 = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -386,7 +393,7 @@ impl ToLLVM for Stmt<'_> {
                     LLVMExpr::Load(
                         tp.clone().into(),
                         LLVMType::Ptr(box tp.clone().into()),
-                        ident.clone(),
+                        ptr.clone(),
                     ),
                 ));
 
@@ -396,13 +403,17 @@ impl ToLLVM for Stmt<'_> {
                     val_t: tp.clone().into(),
                     val: i2.into(),
                     into_t: LLVMType::Ptr(box tp.clone().into()),
-                    into_i: ident.to_owned(),
+                    into_i: ptr,
                 });
             }
 
             // TODO: Remove duplicated code
-            Stmt::Decrement(VarRef::Deref(_, _)) => unimplemented!("Increment pointer deref"),
-            Stmt::Decrement(VarRef::Ident(ident)) => {
+            Stmt::Decrement(var_ref) => {
+                let ptr = match var_ref.transform(out, tp.clone()) {
+                    Some(LLVMVal::Ident(s)) => s,
+                    _ => unreachable!(),
+                };
+
                 let tp = Type::Integer;
                 let i1 = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -410,7 +421,7 @@ impl ToLLVM for Stmt<'_> {
                     LLVMExpr::Load(
                         tp.clone().into(),
                         LLVMType::Ptr(box tp.clone().into()),
-                        ident.clone(),
+                        ptr.clone(),
                     ),
                 ));
 
@@ -420,7 +431,7 @@ impl ToLLVM for Stmt<'_> {
                     val_t: tp.clone().into(),
                     val: i2.into(),
                     into_t: LLVMType::Ptr(box tp.clone().into()),
-                    into_i: ident.to_owned(),
+                    into_i: ptr,
                 });
             }
 
@@ -645,7 +656,7 @@ impl ToLLVM for Expr<'_> {
                 Some(i.into())
             }
 
-            Expr::NullPtr(tp) => {
+            Expr::NullPtr(_) => {
                 Some(0.into())    // TODO ¯\_(ツ)_/¯
             }
 
