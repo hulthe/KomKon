@@ -65,7 +65,7 @@ trait Uniqueify {
 }
 
 impl<T> Uniqueify for Node<'_, T>
-where T: Uniqueify {
+    where T: Uniqueify {
     fn uniqueify(&mut self, names: &mut NameGenerator, stack: &mut Stack) {
         self.elem.uniqueify(names, stack)
     }
@@ -174,12 +174,12 @@ impl Uniqueify for Expr<'_> {
                 .iter_mut()
                 .for_each(|expr| expr.uniqueify(names, stack)),
 
+            Expr::NullPtr(_) |  // TODO not uniqifying nullptrs might be dangerous?
             Expr::New(_) |
             Expr::Double(_) |
             Expr::Integer(_) |
             Expr::Boolean(_) |
             Expr::Str(_) => {}
-
         }
     }
 }

@@ -368,7 +368,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
 
             Expr::NullPtr(tp) => {
                 match tp.as_ref() {
-                    Type::Pointer(_) => Ok(tp),
+                    Type::Pointer(_) => Ok(Type::Pointer(tp.clone()).into()),
                     _ => Err(unimplemented!("not a pointer type"))
                 }
             }

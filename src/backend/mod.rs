@@ -27,9 +27,9 @@ impl LLVM {
         out.lines.push_back(LLVMElem::ExtDef("readInt".into(), LLVMType::I(32), vec![]));
         out.lines.push_back(LLVMElem::ExtDef("readDouble".into(), LLVMType::F(64), vec![]));
         out.lines.push_back(LLVMElem::ExtDef("malloc".into(),
-            LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32)]));
+                                             LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32)]));
         out.lines.push_back(LLVMElem::ExtDef("calloc".into(),
-            LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32), LLVMType::I(32)]));
+                                             LLVMType::Ptr(box LLVMType::I(8)), vec![LLVMType::I(32), LLVMType::I(32)]));
 
         for (ident, type_) in p.types.iter() {
             match type_.into() {
@@ -364,8 +364,8 @@ impl ToLLVM for Stmt<'_> {
                 block.transform(out, tp);
             }
 
-            Stmt::Assignment(d@VarRef::Deref(_, _), _expr)
-                => unimplemented!("Assignment pointer deref: {:?}", d),
+            Stmt::Assignment(d @ VarRef::Deref(_, _), _expr)
+            => unimplemented!("Assignment pointer deref: {:?}", d),
             Stmt::Assignment(VarRef::Ident(ident), expr) => {
                 let tp = expr.tp.clone().unwrap();
                 let val = expr.transform(out, tp.clone()).unwrap();
@@ -628,7 +628,7 @@ impl ToLLVM for Expr<'_> {
             &Expr::Integer(i) => Some(i.into()),
             &Expr::Boolean(b) => Some(b.into()),
             Expr::Var(VarRef::Deref(_, _))
-                => unimplemented!("Code gen not implemented for pointer deref"),
+            => unimplemented!("Code gen not implemented for pointer deref"),
             Expr::Var(VarRef::Ident(ident)) => {
                 let i = out.new_var_name();
                 out.lines.push_back(LLVMElem::Assign(
@@ -641,6 +641,11 @@ impl ToLLVM for Expr<'_> {
                 ));
                 Some(i.into())
             }
+
+            Expr::NullPtr(tp) => {
+                Some(0.into())    // TODO ¯\_(ツ)_/¯
+            }
+
             Expr::New(n) => {
                 let i = out.new_var_name();
                 let j = out.new_var_name();
