@@ -1,6 +1,10 @@
 Javalette Compiler
 ==================
 
+Extensions
+----------
+The compiler only implements the ``pointers`` extension.
+
 Building the compiler
 ---------------------
 
