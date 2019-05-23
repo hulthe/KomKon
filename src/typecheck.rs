@@ -211,7 +211,7 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
                 block2.check(stack, func_type.clone())?;
             }
 
-            Stmt::Assignment(var_ref @ VarRef::Deref(_, _), rhs) => {
+            Stmt::Assignment(var_ref, rhs) => {
                 let lhs = var_ref.check(stack, func_type.clone())?;
                 let rhs = rhs.check(stack, func_type)?;
 
@@ -219,15 +219,9 @@ impl<'a> TypeCheckable<'a> for Stmt<'a> {
                     return Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }));
                 }
             }
-            Stmt::Assignment(VarRef::Ident(ident), stmt)
-            => if let Some(StackType::Variable(type_, _)) = search_stack(stack, ident) {
-                assert_type(type_.clone(), stmt.check(stack, func_type)?)?;
-            } else {
-                return Err(Error::NoContext(ErrorKind::Undeclared {}));
-            }
 
             Stmt::Increment(var_ref) | Stmt::Decrement(var_ref) => {
-                    assert_type(Type::Integer.into(), var_ref.check(stack, func_type)?)?;
+                assert_type(Type::Integer.into(), var_ref.check(stack, func_type)?)?;
             }
 
             Stmt::Declare(decl_type, decl_items)
@@ -359,7 +353,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             //
             Expr::Var(var_ref) => var_ref.check(stack, func_type.clone()),
 
-            Expr::NullPtr(tp) => Ok(Type::Pointer(tp.clone()).into()),
+            Expr::NullPtr(tp) => Ok(tp.clone()),
 
             Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 
@@ -448,6 +442,7 @@ fn is_part_ord(t: &Type) -> bool {
 
 fn is_eq(t: &Type) -> bool {
     match t {
+        Type::Pointer(_) |
         Type::Integer |
         Type::Double |
         Type::Boolean => true,
