@@ -674,7 +674,8 @@ impl ToLLVM for Expr<'_> {
                 let tp: LLVMType = n.clone().into();
                 out.lines.push_back(LLVMElem::Assign(
                     i.clone(),
-                    LLVMExpr::Call(LLVMType::Ptr(box LLVMType::I(8)), "malloc".into(), vec![
+                    LLVMExpr::Call(LLVMType::Ptr(box LLVMType::I(8)), "calloc".into(), vec![
+                        (LLVMType::I(32), 1.into()),
                         (LLVMType::I(32), LLVMVal::Const(size.to_string())),
                     ]),
                 ));
