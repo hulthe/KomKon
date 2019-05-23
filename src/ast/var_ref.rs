@@ -1,27 +1,40 @@
-use crate::ast::{Rule, FromPair, ASTError};
+use crate::ast::{Rule, FromPair, TypeMap, Node, ASTError};
 use pest::iterators::Pair;
 
 #[derive(Debug)]
-pub enum VarRef {
-    Deref(String, Box<VarRef>),
+pub enum VarRef<'a> {
+    Deref(Node<'a, VarRef<'a>>, String),
     Ident(String),
 }
 
-impl FromPair<'_> for VarRef {
-    fn from_pair(pair: Pair<'_, Rule>) -> Result<Self, ASTError> {
-        let rules = pair.into_inner()
-            .map(|pair| (pair.as_rule(), pair))
-            .collect::<Vec<_>>();
+impl<'a> VarRef<'a> {
+    pub fn ident(&self) -> &str {
+        match self {
+            VarRef::Deref(_, name) |
+            VarRef::Ident(name) => name,
+        }
+    }
+
+    fn from_pair_rec(slice: &'a str, rules: &[(Rule, Pair<'a, Rule>)], types: &TypeMap) -> Result<Self, ASTError> {
         Ok(match &rules[..] {
-            [(Rule::Ident, i), (Rule::Deref, _), (Rule::Variable, v)]
-                => VarRef::Deref(
-                    i.as_str().to_owned(),
-                    box VarRef::from_pair(v.clone())?,
-                ),
-            [(Rule::Ident, i)]
-                => VarRef::Ident(i.as_str().to_owned()),
+            [head.., (Rule::Deref, _), (Rule::Ident, i)]
+            => VarRef::Deref(
+                Node::new(Self::from_pair_rec(slice, head, types)?, slice),
+                i.as_str().to_owned(),
+            ),
+            [(Rule::Ident, i)] => VarRef::Ident(i.as_str().to_owned()),
+
             _ => Err("No matching rule for VarRef")?,
         })
     }
 }
 
+impl<'a> FromPair<'a> for VarRef<'a> {
+    fn from_pair(pair: Pair<'a, Rule>, types: &TypeMap) -> Result<Self, ASTError> {
+        let slice = pair.as_str();
+        let rules = pair.into_inner()
+            .map(|pair| (pair.as_rule(), pair))
+            .collect::<Vec<_>>();
+        Self::from_pair_rec(slice, &rules[..], types)
+    }
+}

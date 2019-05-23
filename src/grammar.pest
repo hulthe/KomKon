@@ -71,7 +71,7 @@ Type = @{
 }
 FunType = { Type ~ "(" ~ (Type ~ ("," ~  Type)*)? ~ ")"}
 
-Variable = { (Ident ~ Deref ~ Variable) | Ident }
+Variable = { Ident ~ (Deref ~ Ident)* }
 
 Expr6 = {
     (Ident ~ LPar ~ (Expr ~ ("," ~ Expr)*)? ~ RPar ) |
@@ -81,6 +81,7 @@ Expr6 = {
     Double |
     Integer |
     Boolean |
+    // TODO: Make pointer dereferencing into an actual expression
     Variable |
     String
 }

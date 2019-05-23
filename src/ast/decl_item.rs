@@ -1,4 +1,4 @@
-use crate::ast::{Rule, FromPair, Expr, ASTError};
+use crate::ast::{Rule, TypeMap, FromPair, Expr, ASTError};
 use pest::iterators::Pair;
 
 #[derive(Debug)]
@@ -16,13 +16,13 @@ impl DeclItem<'_> {
 }
 
 impl<'a> FromPair<'a> for DeclItem<'a> {
-    fn from_pair(pair: Pair<'a, Rule>) -> Result<Self, ASTError> {
+    fn from_pair(pair: Pair<'a, Rule>, types: &TypeMap) -> Result<Self, ASTError> {
         let rules = pair.into_inner()
             .map(|pair| (pair.as_rule(), pair))
             .collect::<Vec<_>>();
         Ok(match &rules[..] {
             [(Rule::Ident, idenp), (Rule::Assign, _), (Rule::Expr, expp)]
-            => DeclItem::Init(idenp.as_str().to_owned(), Expr::from_pair(expp.clone())?),
+            => DeclItem::Init(idenp.as_str().to_owned(), Expr::from_pair(expp.clone(), types)?),
 
             [(Rule::Ident, idenp)] => DeclItem::NoInit(idenp.as_str().to_owned()),
 

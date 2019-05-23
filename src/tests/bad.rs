@@ -103,3 +103,7 @@ test_bad!(bad063);
 test_bad!(bad064);
 test_bad!(bad065);
 
+test_bad!(struct02);
+test_bad!(struct03);
+test_bad!(struct04);
+test_bad!(struct05);

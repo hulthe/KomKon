@@ -123,6 +123,8 @@ impl Minimize for Expr<'_> {
             Expr::Integer(_) |
             Expr::Boolean(_) |
             Expr::Var(_) |
+            Expr::NullPtr(_) |
+            Expr::New(_) |
             Expr::Str(_) => {}
         }
 
@@ -170,6 +172,7 @@ impl Minimize for Expr<'_> {
 
             Not(n!(Boolean(b))) => Some(Boolean(!*b)),
             _ => None,
+
         };
 
         if let Some(mut new) = new {

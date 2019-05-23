@@ -36,7 +36,8 @@ macro_rules! n {
 /// Assumes simplified constants, e.g. 1==1 should have been replaced with true
 pub fn return_check(prog: &Program) -> Result<bool, Error> {
     for td in &prog.functions {
-        if let n!(Function { return_type: Type::Void, ident: _, args: _, body: _ }) = td {
+        let n!(Function { return_type, .. }) = td;
+        if return_type.as_ref() == &Type::Void {
             td.check()?;    // will error on unreachable statement
         } else {
             if !td.check()? {

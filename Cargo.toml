@@ -1,6 +1,6 @@
 [package]
 name = "jlc"
-version = "0.1.0"
+version = "1.0.0"
 description = """ 
 jlc is a compiler for Javalette: A fictional programming language
 created for the Compiler Construction (TDA283) Chalmers course.

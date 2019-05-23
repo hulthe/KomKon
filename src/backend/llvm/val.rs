@@ -6,6 +6,10 @@ pub enum LLVMVal {
     /// I.E. `Ident("t0")` will be rendered as `%t0`.
     Ident(String),
 
+    /// An identifier mapping to some global.
+    /// I.E. `Global("s0")` will be rendered as `@s0`.
+    Global(String),
+
     /// A string mapping to some valid LLVM IR constant
     /// I.E. `Const("42.0")` will be rendered as `42.0`.
     Const(String),
@@ -49,6 +53,7 @@ impl Display for LLVMVal {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             LLVMVal::Ident(ident) => write!(f, "%{}", ident),
+            LLVMVal::Global(ident) => write!(f, "@{}", ident),
             LLVMVal::Const(s) => write!(f, "{}", s),
             LLVMVal::Str(s) => {
                 write!(f, "c\"")?;

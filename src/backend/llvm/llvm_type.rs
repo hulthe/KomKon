@@ -1,4 +1,4 @@
-use crate::ast::Type;
+use crate::ast::{Type, TypeRef};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Clone, Debug)]
@@ -8,6 +8,10 @@ pub enum LLVMType {
     V,
     Array(usize, Box<LLVMType>),
     Ptr(Box<LLVMType>),
+    Struct{
+        name: String,
+        size: usize,
+    },
 }
 
 impl LLVMType {
@@ -30,12 +34,41 @@ impl LLVMType {
 
     pub fn default_value(&self) -> &'static str {
         match self {
+            LLVMType::Ptr(_) => "null",
             LLVMType::I(_) => "0",
             LLVMType::F(_) => "0.0",
             LLVMType::V => "void",
-            LLVMType::Array(_, _) |
-            LLVMType::Ptr(_) => unimplemented!(),
+            LLVMType::Struct{..} |
+            LLVMType::Array(_, _) => unimplemented!(),
         }
+    }
+}
+
+impl From<TypeRef> for LLVMType {
+    fn from(t: TypeRef) -> LLVMType {
+        match t.as_ref() {
+            Type::Integer => LLVMType::I(32),
+            Type::Double => LLVMType::F(64),
+            Type::Void => LLVMType::V,
+            Type::Boolean => LLVMType::I(1),
+            Type::String => LLVMType::Ptr(box LLVMType::I(8)),
+            Type::Pointer(t) => LLVMType::Ptr(box t.into()),
+            Type::Struct {
+                name,
+                fields,
+            } => {
+                LLVMType::Struct {
+                    name: name.clone(),
+                    size: fields.iter().map(|(_, t)| t.byte_size()).sum(),
+                }
+            }
+        }
+    }
+}
+
+impl From<&TypeRef> for LLVMType {
+    fn from(t: &TypeRef) -> LLVMType {
+        t.clone().into()
     }
 }
 
@@ -47,6 +80,16 @@ impl From<Type> for LLVMType {
             Type::Void => LLVMType::V,
             Type::Boolean => LLVMType::I(1),
             Type::String => LLVMType::Ptr(box LLVMType::I(8)),
+            Type::Pointer(t) => LLVMType::Ptr(box t.into()),
+            Type::Struct {
+                name,
+                fields,
+            } => {
+                LLVMType::Struct{
+                    name: name.clone(),
+                    size: fields.iter().map(|(_, t)| t.byte_size()).sum(),
+                }
+            }
         }
     }
 }
@@ -63,6 +106,7 @@ impl Display for LLVMType {
             V => write!(f, "void")?,
             Array(len, box t) => write!(f, "[{} x {}]", len, t)?,
             Ptr(box t) => write!(f, "{}*", t)?,
+            Struct{name, ..} => write!(f, "%{}", name)?,
         }
         Ok(())
     }

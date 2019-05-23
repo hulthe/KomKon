@@ -19,7 +19,10 @@ pub enum ASTError {
     /// A string literal contained an invalid escape sequence.
     InvalidEscapeSequence(char),
 
-    // TODO: Remove this error when custom types are implemented
+    /// Tried to declare a type with the same name as one previously defined.
+    TypeAlreadyDeclared(String),
+
+    /// Tried to reference a type which did not exist.
     NonExistentType(String),
 }
 
@@ -59,6 +62,9 @@ impl CompilerError for ASTError {
             }
             ASTError::InvalidEscapeSequence(c) => {
                 write!(w, "{} \\{}\n", "Invalid escape sequence:".red(), c)?;
+            }
+            ASTError::TypeAlreadyDeclared(t) => {
+                write!(w, "{} {}\n", "Type already declared:".bright_red(), t)?;
             }
             ASTError::NonExistentType(t) => {
                 write!(w, "{} {}\n", "Not a valid type:".bright_red(), t)?;

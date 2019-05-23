@@ -1,5 +1,5 @@
 use crate::CompilerError;
-use crate::ast::{Type, Program, Function, Blk, Stmt, Arg, DeclItem, Expr, VarRef, Node};
+use crate::ast::{Type, TypeRef, Program, Function, Blk, Stmt, Arg, DeclItem, Expr, VarRef, Node};
 use crate::util::{get_internal_slice_pos, byte_pos_to_line, print_error};
 use colored::*;
 use std::io::{self, Write, StderrLock};
@@ -7,8 +7,8 @@ use std::fmt::{Display, Formatter, self};
 
 #[derive(Debug)]
 enum StackType {
-    Variable(Type, String),
-    Function(Type, String, Vec<Arg>),
+    Variable(TypeRef, String),
+    Function(TypeRef, String, Vec<Arg>),
 }
 
 impl StackType {
@@ -53,19 +53,23 @@ impl CompilerError for Error<'_> {
 
 #[derive(Debug)]
 pub enum ErrorKind {
-    Type { expected: Type, got: Type },
-    MismatchedType { lhs: Type, rhs: Type },
-    InvalidReturnType { expected: Type, got: Type },
+    Type { expected: TypeRef, got: TypeRef },
+    MismatchedType { lhs: TypeRef, rhs: TypeRef },
+    InvalidReturnType { expected: TypeRef, got: TypeRef },
     Undeclared {},
     AlreadyDeclared {},
-    NotPartialOrdered { got: Type },
-    NotOrdered { got: Type },
-    NotEq { got: Type },
-    NotNumber { got: Type },
+    NotPartialOrdered { got: TypeRef },
+    NotOrdered { got: TypeRef },
+    NotEq { got: TypeRef },
+    NotNumber { got: TypeRef },
     NotAFunction,
     InvalidArgumentCount { expected: usize, got: usize },
     InvalidMainDef,
     MissingMain,
+    InvalidField,
+    InvalidFieldAccess,
+    InvalidDeref,
+
 }
 
 impl Display for ErrorKind {
@@ -84,6 +88,9 @@ impl Display for ErrorKind {
             ErrorKind::InvalidArgumentCount { expected, got } => write!(f, "Invalid argument count. Expected {}. Got {}", expected, got),
             ErrorKind::InvalidMainDef => write!(f, "Invalid definition of \"main\".\nMust have return type int and no parameters."),
             ErrorKind::MissingMain => write!(f, "Function \"main\" must be defined."),
+            ErrorKind::InvalidField => write!(f, "Struct field does not exist"),
+            ErrorKind::InvalidFieldAccess => write!(f, "Accessing field of non-struct"),
+            ErrorKind::InvalidDeref => write!(f, "Tried to deref a non-pointer type"),
         }
     }
 }
@@ -92,21 +99,21 @@ pub fn type_check<'a>(prog: &mut Program<'a>) -> Result<(), Error<'a>> {
     use self::{StackType::*};
     let mut stack: Vec<StackElem> = vec![];
 
-    stack.push(StackElem::Type(Function(Type::Void, "printInt".into(), vec![Arg(Type::Integer, "n".into())])));
-    stack.push(StackElem::Type(Function(Type::Void, "printDouble".into(), vec![Arg(Type::Double, "x".into())])));
-    stack.push(StackElem::Type(Function(Type::Void, "printString".into(), vec![Arg(Type::String, "s".into())])));
-    stack.push(StackElem::Type(Function(Type::Integer, "readInt".into(), vec![])));
-    stack.push(StackElem::Type(Function(Type::Double, "readDouble".into(), vec![])));
+    stack.push(StackElem::Type(Function(Type::Void.into(), "printInt".into(), vec![Arg(Type::Integer.into(), "n".into())])));
+    stack.push(StackElem::Type(Function(Type::Void.into(), "printDouble".into(), vec![Arg(Type::Double.into(), "x".into())])));
+    stack.push(StackElem::Type(Function(Type::Void.into(), "printString".into(), vec![Arg(Type::String.into(), "s".into())])));
+    stack.push(StackElem::Type(Function(Type::Integer.into(), "readInt".into(), vec![])));
+    stack.push(StackElem::Type(Function(Type::Double.into(), "readDouble".into(), vec![])));
 
     for f in &prog.functions {
         if f.elem.ident == "main" {
-            if f.elem.return_type != Type::Integer ||
+            if f.elem.return_type != Type::Integer.into() ||
                 f.elem.args.len() != 0 {
                 return Err(Error::Context(f.get_slice(), ErrorKind::InvalidMainDef));
             }
         }
         push_stack_def(&mut stack, Function(
-            f.elem.return_type,
+            f.elem.return_type.clone().into(),
             f.elem.ident.clone(),
             f.elem.args.clone(),
         ))?;
@@ -115,7 +122,7 @@ pub fn type_check<'a>(prog: &mut Program<'a>) -> Result<(), Error<'a>> {
     search_stack(&stack, "main").ok_or(Error::NoContext(ErrorKind::MissingMain))?;
 
     for f in &mut prog.functions {
-        f.elem.check(&mut stack, Type::Void)?;
+        f.elem.check(&mut stack, Type::Void.into())?;
     }
 
     Ok(())
@@ -141,19 +148,19 @@ trait TypeCheckable<'a> {
     ///
     /// * `func_type` - The return type of the function being traversed
     ///
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>>;
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>>;
 }
 
 impl<'a, T> TypeCheckable<'a> for Node<'a, T>
     where T: TypeCheckable<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
         match self.elem.check(stack, func_type) {
             Err(Error::NoContext(e)) => {
                 Err(Error::Context(self.get_slice(), e))
             }
 
             Ok(tp) => {
-                self.tp = Some(tp);
+                self.tp = Some(tp.clone().into());
                 Ok(tp)
             }
 
@@ -163,119 +170,113 @@ impl<'a, T> TypeCheckable<'a> for Node<'a, T>
 }
 
 impl<'a> TypeCheckable<'a> for Function<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, _: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, _: TypeRef) -> Result<TypeRef, Error<'a>> {
         stack.push(StackElem::Scope("Function"));
         for Arg(type_, ident) in &self.args {
-            push_stack_def(stack, StackType::Variable(*type_, ident.clone()))?;
+            push_stack_def(stack, StackType::Variable(type_.clone().into(), ident.clone()))?;
         }
-        self.body.check(stack, self.return_type)?;
+        self.body.check(stack, self.return_type.clone().into())?;
         pop_scope(stack);
-        Ok(self.return_type)
+        Ok(self.return_type.clone())
     }
 }
 
 impl<'a> TypeCheckable<'a> for Blk<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
         stack.push(StackElem::Scope("Block"));
         for st in &mut self.0 {
-            st.check(stack, func_type)?;
+            st.check(stack, func_type.clone())?;
         }
         pop_scope(stack);
-        Ok(Type::Void)
+        Ok(Type::Void.into())
     }
 }
 
 impl<'a> TypeCheckable<'a> for Stmt<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
         match self {
             Stmt::Return(expr) => {
-                assert_type(func_type, expr.check(stack, func_type)?)?;
+                assert_type(func_type.clone(), expr.check(stack, func_type.clone())?)?;
                 return Ok(func_type);
             }
 
             Stmt::ReturnVoid
-            => if func_type == Type::Void {} else {
-                return Err(Error::NoContext(ErrorKind::InvalidReturnType { expected: func_type, got: Type::Void }));
+            => if func_type == Type::Void.into() {} else {
+                return Err(Error::NoContext(ErrorKind::InvalidReturnType { expected: func_type, got: Type::Void.into() }));
             },
 
             Stmt::If(expr, block) | Stmt::While(expr, block)
             => {
-                assert_type(Type::Boolean, expr.check(stack, func_type)?)?;
-                block.check(stack, func_type)?;
+                assert_type(Type::Boolean.into(), expr.check(stack, func_type.clone())?)?;
+                block.check(stack, func_type.clone())?;
             }
 
             Stmt::IfElse(expr, block1, block2)
             => {
-                assert_type(Type::Boolean, expr.check(stack, func_type)?)?;
-                block1.check(stack, func_type)?;
-                block2.check(stack, func_type)?;
+                assert_type(Type::Boolean.into(), expr.check(stack, func_type.clone())?)?;
+                block1.check(stack, func_type.clone())?;
+                block2.check(stack, func_type.clone())?;
             }
 
-            Stmt::Assignment(VarRef::Deref(_, _), _) => unimplemented!("Pointer deref typecheck"),
-            Stmt::Assignment(VarRef::Ident(ident), stmt)
-            => if let Some(StackType::Variable(type_, _)) = search_stack(stack, ident) {
-                assert_type(*type_, stmt.check(stack, func_type)?)?;
-            } else {
-                return Err(Error::NoContext(ErrorKind::Undeclared {}));
+            Stmt::Assignment(var_ref, rhs) => {
+                let lhs = var_ref.check(stack, func_type.clone())?;
+                let rhs = rhs.check(stack, func_type)?;
+
+                if lhs != rhs {
+                    return Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }));
+                }
             }
 
-            Stmt::Increment(VarRef::Deref(_, _)) |
-            Stmt::Decrement(VarRef::Deref(_, _)) => unimplemented!("Pointer deref typecheck"),
-
-            Stmt::Increment(VarRef::Ident(ident)) | Stmt::Decrement(VarRef::Ident(ident))
-            => match search_stack(stack, ident) {
-                Some(StackType::Variable(type_, _ident))
-                => { assert_type(Type::Integer, *type_)?; }
-
-                _ => return Err(Error::NoContext(ErrorKind::Undeclared {}))
+            Stmt::Increment(var_ref) | Stmt::Decrement(var_ref) => {
+                assert_type(Type::Integer.into(), var_ref.check(stack, func_type)?)?;
             }
 
             Stmt::Declare(decl_type, decl_items)
             => {
                 for item in decl_items.iter_mut() {
                     if let DeclItem::Init(_, expr) = item {
-                        assert_type(*decl_type, expr.check(stack, func_type)?)?;
+                        assert_type(decl_type.clone(), expr.check(stack, func_type.clone())?)?;
                     }
                 }
                 for item in decl_items.iter_mut() {
-                    push_stack_def(stack, StackType::Variable(*decl_type, item.get_ident().into()))?;
+                    push_stack_def(stack, StackType::Variable(decl_type.clone(), item.get_ident().into()))?;
                 }
             }
 
             Stmt::Block(child) => { child.check(stack, func_type)?; }
             Stmt::Expression(child) => {
-                assert_type(Type::Void, child.check(stack, func_type)?)?;
+                assert_type(Type::Void.into(), child.check(stack, func_type)?)?;
             }
             Stmt::Empty => {}
         }
-        Ok(Type::Void)
+        Ok(Type::Void.into())
     }
 }
 
 impl<'a> TypeCheckable<'a> for Expr<'a> {
-    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: Type) -> Result<Type, Error<'a>> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
         match self {
             // bool -> bool -> bool
             Expr::LOr(lhs, rhs) |
             Expr::LAnd(lhs, rhs)
             => {
-                assert_type(Type::Boolean, lhs.check(stack, func_type)?)?;
-                assert_type(Type::Boolean, rhs.check(stack, func_type)?)?;
-                Ok(Type::Boolean)
+                assert_type(Type::Boolean.into(), lhs.check(stack, func_type.clone())?)?;
+                assert_type(Type::Boolean.into(), rhs.check(stack, func_type.clone())?)?;
+                Ok(Type::Boolean.into())
             }
 
             // PartOrd A => A -> A -> bool
             Expr::GT(lhs, rhs) |
             Expr::LT(lhs, rhs)
             => {
-                let lhs = lhs.check(stack, func_type)?;
-                let rhs = rhs.check(stack, func_type)?;
+                let lhs = lhs.check(stack, func_type.clone())?;
+                let rhs = rhs.check(stack, func_type.clone())?;
                 if lhs != rhs {
                     Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }))
                 } else if !is_part_ord(&lhs) {
                     Err(Error::NoContext(ErrorKind::NotPartialOrdered { got: lhs }))
                 } else {
-                    Ok(Type::Boolean)
+                    Ok(Type::Boolean.into())
                 }
             }
 
@@ -283,14 +284,14 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             Expr::GE(lhs, rhs) |
             Expr::LE(lhs, rhs)
             => {
-                let lhs = lhs.check(stack, func_type)?;
-                let rhs = rhs.check(stack, func_type)?;
+                let lhs = lhs.check(stack, func_type.clone())?;
+                let rhs = rhs.check(stack, func_type.clone())?;
                 if lhs != rhs {
                     Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }))
                 } else if !is_ord(&lhs) {
                     Err(Error::NoContext(ErrorKind::NotOrdered { got: lhs }))
                 } else {
-                    Ok(Type::Boolean)
+                    Ok(Type::Boolean.into())
                 }
             }
 
@@ -298,14 +299,14 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             Expr::EQ(lhs, rhs) |
             Expr::NE(lhs, rhs)
             => {
-                let lhs = lhs.check(stack, func_type)?;
-                let rhs = rhs.check(stack, func_type)?;
+                let lhs = lhs.check(stack, func_type.clone())?;
+                let rhs = rhs.check(stack, func_type.clone())?;
                 if lhs != rhs {
                     Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }))
                 } else if !is_eq(&lhs) {
                     Err(Error::NoContext(ErrorKind::NotEq { got: lhs }))
                 } else {
-                    Ok(Type::Boolean)
+                    Ok(Type::Boolean.into())
                 }
             }
 
@@ -315,8 +316,8 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             Expr::Add(lhs, rhs) |
             Expr::Sub(lhs, rhs)
             => {
-                let lhs = lhs.check(stack, func_type)?;
-                let rhs = rhs.check(stack, func_type)?;
+                let lhs = lhs.check(stack, func_type.clone())?;
+                let rhs = rhs.check(stack, func_type.clone())?;
                 if lhs != rhs {
                     Err(Error::NoContext(ErrorKind::MismatchedType { lhs, rhs }))
                 } else if !is_number(&lhs) {
@@ -328,9 +329,9 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
 
             // Integer A => A -> A -> A
             Expr::Mod(lhs, rhs) => {
-                assert_type(Type::Integer, lhs.check(stack, func_type)?)?;
-                assert_type(Type::Integer, rhs.check(stack, func_type)?)?;
-                Ok(Type::Integer)
+                assert_type(Type::Integer.into(), lhs.check(stack, func_type.clone())?)?;
+                assert_type(Type::Integer.into(), rhs.check(stack, func_type.clone())?)?;
+                Ok(Type::Integer.into())
             }
 
             // Number A => A -> A
@@ -344,30 +345,30 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
 
             // bool -> bool
             Expr::Not(op)
-            => assert_type(Type::Boolean, op.check(stack, func_type)?),
+            => assert_type(Type::Boolean.into(), op.check(stack, func_type)?),
 
             // A -> A
             Expr::Double(_)
-            => Ok(Type::Double),
+            => Ok(Type::Double.into()),
             Expr::Integer(_)
-            => Ok(Type::Integer),
+            => Ok(Type::Integer.into()),
             Expr::Boolean(_)
-            => Ok(Type::Boolean),
+            => Ok(Type::Boolean.into()),
             Expr::Str(_)
-            => Ok(Type::String),
-            Expr::Var(VarRef::Deref(_, _)) => unimplemented!("Pointer dereference not implemented"),
-            Expr::Var(VarRef::Ident(ident))
-            => match search_stack(stack, ident) {
-                Some(StackType::Variable(t, _)) => Ok(*t),
-                Some(StackType::Function(t, ..)) => Ok(*t),
-                _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
-            }
+            => Ok(Type::String.into()),
+
+            //
+            Expr::Var(var_ref) => var_ref.check(stack, func_type.clone()),
+
+            Expr::NullPtr(tp) => Ok(tp.clone()),
+
+            Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 
             // Function call (type of function, check that expression types and length match)
             Expr::FunctionCall(ident, args)
             => match search_stack(stack, ident) {
                 Some(StackType::Function(t, _, params)) => {
-                    let t = *t;
+                    let t = t.clone();
                     if params.len() != args.len() {
                         return Err(Error::NoContext(ErrorKind::InvalidArgumentCount {
                             expected: params.len(),
@@ -375,9 +376,9 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                         }));
                     }
                     let it: Vec<_> = args.iter_mut()
-                        .zip(params.iter().map(|Arg(param_t, _)| *param_t)).collect();
+                        .zip(params.iter().map(|Arg(param_t, _)| param_t.clone())).collect();
                     for (arg, param_t) in it {
-                        let arg_t = arg.check(stack, func_type)?;
+                        let arg_t = arg.check(stack, func_type.clone())?;
                         if param_t != arg_t {
                             return Err(Error::NoContext(ErrorKind::Type { expected: param_t, got: arg_t }));
                         }
@@ -386,6 +387,36 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
                 }
                 Some(_) => Err(Error::NoContext(ErrorKind::NotAFunction)),
                 None => Err(Error::NoContext(ErrorKind::Undeclared {})),
+            }
+        }
+    }
+}
+
+impl<'a> TypeCheckable<'a> for VarRef<'a> {
+    fn check(&mut self, stack: &mut Vec<StackElem>, func_type: TypeRef) -> Result<TypeRef, Error<'a>> {
+        match self {
+            VarRef::Ident(ident) => {
+                return match search_stack(stack, ident) {
+                    Some(StackType::Variable(t, _)) => Ok(t.clone()),
+                    Some(StackType::Function(t, ..)) => Ok(t.clone()),
+                    _ => Err(Error::NoContext(ErrorKind::Undeclared {}))
+                };
+            }
+            VarRef::Deref(lhs, ident) => {
+                match lhs.check(stack, func_type)?.as_ref() {
+                    Type::Pointer(t) => {
+                        match t.as_ref() {
+                            Type::Struct { name: _, fields } => {
+                                match fields.iter().find(|(name, _)| name == ident) {
+                                    Some((_, tp)) => Ok(tp.clone()),
+                                    None => Err(Error::NoContext(ErrorKind::InvalidField)),
+                                }
+                            }
+                            _ => Err(Error::NoContext(ErrorKind::InvalidFieldAccess)),
+                        }
+                    }
+                    _ => Err(Error::NoContext(ErrorKind::InvalidDeref)),
+                }
             }
         }
     }
@@ -418,6 +449,7 @@ fn is_part_ord(t: &Type) -> bool {
 
 fn is_eq(t: &Type) -> bool {
     match t {
+        Type::Pointer(_) |
         Type::Integer |
         Type::Double |
         Type::Boolean => true,
@@ -464,7 +496,7 @@ fn search_stack_scope<'a>(stack: &'a Vec<StackElem>, ident: &str) -> Option<&'a 
 }
 
 
-fn assert_type(expected: Type, got: Type) -> Result<Type, Error<'static>> {
+fn assert_type(expected: TypeRef, got: TypeRef) -> Result<TypeRef, Error<'static>> {
     if expected == got {
         Ok(got)
     } else {

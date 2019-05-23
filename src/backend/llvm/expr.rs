@@ -10,7 +10,7 @@ pub enum LLVMExpr {
     /// Load a value from an address
     Load(LLVMType, LLVMType, String),
 
-    GetElementPtr(LLVMType, String, Vec<(LLVMType, LLVMVal)>),
+    GetElementPtr(LLVMType, LLVMVal, Vec<(LLVMType, LLVMVal)>),
 
     /// Compare two integers.
     CmpI(LLVMIOrd, LLVMType, LLVMVal, LLVMVal),
@@ -19,6 +19,8 @@ pub enum LLVMExpr {
     CmpF(LLVMFOrd, LLVMType, LLVMVal, LLVMVal),
 
     Phi(LLVMType, Vec<(LLVMVal, String)>),
+
+    Bitcast(LLVMType, LLVMVal, LLVMType),
 
     Add(LLVMType, LLVMVal, LLVMVal),
     Sub(LLVMType, LLVMVal, LLVMVal),
@@ -39,7 +41,7 @@ impl Display for LLVMExpr {
             AllocA(tp) => write!(f, "alloca {}", tp),
             Load(into_t, from_t, from_i) => write!(f, "load {}, {} %{}", into_t, from_t, from_i),
             GetElementPtr(ptr_type, ptr, indices) => {
-                write!(f, "getelementptr {0}, {0}* @{1}", ptr_type, ptr)?;
+                write!(f, "getelementptr {0}, {0}* {1}", ptr_type, ptr)?;
                 for (t, v) in indices {
                     write!(f, ", {} {}", t, v)?;
                 }
@@ -52,6 +54,7 @@ impl Display for LLVMExpr {
                 write_list(f, ", ", vals.iter(),
                     |f, (val, label)| write!(f, "[ {}, %{} ]", val, label))
             }
+            Bitcast(from_t, val, to_t) => write!(f, "bitcast {} {} to {}", from_t, val, to_t),
             Add(t, i1, i2) => {
                 if t.is_integer_type() {
                     write!(f, "add {} {}, {}", t, i1, i2)
@@ -110,7 +113,7 @@ impl Display for LLVMExpr {
                     LLVMType::F(_) => {
                         write!(f, "fsub {} 0.0, {}", t, i)
                     }
-                    _ => unimplemented!(),
+                    _ => panic!("Attempting to negate non-number type {}", t),
                 }
             }
             Call(tp, ident, args) => {

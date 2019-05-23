@@ -10,6 +10,9 @@ pub enum LLVMElem {
     /// Example: `define i32 @main() {`
     TopDef(String, LLVMType, Vec<(LLVMType, String)>),
 
+    /// Example: %T = type {i32, i32}
+    TypeDef(String, Vec<LLVMType>),
+
     /// Example: `declare i32 @readInt()`
     ExtDef(String, LLVMType, Vec<LLVMType>),
 
@@ -54,6 +57,7 @@ impl HasIdentifier for LLVMElem {
     fn get_identifier(&self) -> Option<&str> {
         match self {
             LLVMElem::TopDef(ident, _ ,_) |
+            LLVMElem::TypeDef(ident, _) |
             LLVMElem::ExtDef(ident, _ ,_) |
             LLVMElem::InternalConst(ident, _ ,_) |
             LLVMElem::Label(ident) |
@@ -71,8 +75,14 @@ impl Display for LLVMElem {
                 write!(f, "define {} @{}(", ret, ident)?;
                 write_list(f, ", ", params.iter(),
                     |f, (param_t, param_ident)| write!(f, "{} %{}", param_t, param_ident))?;
-                write!(f, ") {{\n")
+                writeln!(f, ") {{")
             },
+
+            TypeDef(ident, types) => {
+                write!(f, "%{} = type {{", ident)?;
+                write_list(f, ", ", types.iter(), |f, t| write!(f, "{}", t))?;
+                writeln!(f, "}}")
+            }
 
             ExtDef(ident, ret, params) => {
                 write!(f, "declare {} @{}(", ret, ident)?;
