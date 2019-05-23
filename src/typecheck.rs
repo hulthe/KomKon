@@ -366,12 +366,7 @@ impl<'a> TypeCheckable<'a> for Expr<'a> {
             //
             Expr::Var(var_ref) => var_ref.check(stack, func_type.clone()),
 
-            Expr::NullPtr(tp) => {
-                match tp.as_ref() {
-                    Type::Pointer(_) => Ok(Type::Pointer(tp.clone()).into()),
-                    _ => Err(unimplemented!("not a pointer type"))
-                }
-            }
+            Expr::NullPtr(tp) => Ok(Type::Pointer(tp.clone()).into()),
 
             Expr::New(tp) => return Ok(Type::Pointer(tp.clone()).into()),
 

@@ -174,7 +174,7 @@ impl Uniqueify for Expr<'_> {
                 .iter_mut()
                 .for_each(|expr| expr.uniqueify(names, stack)),
 
-            Expr::NullPtr(_) |  // TODO not uniqifying nullptrs might be dangerous?
+            Expr::NullPtr(_) |
             Expr::New(_) |
             Expr::Double(_) |
             Expr::Integer(_) |
