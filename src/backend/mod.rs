@@ -716,8 +716,8 @@ impl ToLLVM for Expr<'_> {
     }
 }
 
-    impl ToLLVM for VarRef<'_> {
-    fn transform(&self, out: &mut LLVM, tp: TypeRef) -> Option<LLVMVal> {
+impl ToLLVM for VarRef<'_> {
+    fn transform(&self, out: &mut LLVM, _: TypeRef) -> Option<LLVMVal> {
         match self {
             VarRef::Deref(lhs, ident) => {
                 let lhs_tp = lhs.tp.as_ref().unwrap().clone();

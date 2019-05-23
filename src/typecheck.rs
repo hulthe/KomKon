@@ -66,6 +66,10 @@ pub enum ErrorKind {
     InvalidArgumentCount { expected: usize, got: usize },
     InvalidMainDef,
     MissingMain,
+    InvalidField,
+    InvalidFieldAccess,
+    InvalidDeref,
+
 }
 
 impl Display for ErrorKind {
@@ -84,6 +88,9 @@ impl Display for ErrorKind {
             ErrorKind::InvalidArgumentCount { expected, got } => write!(f, "Invalid argument count. Expected {}. Got {}", expected, got),
             ErrorKind::InvalidMainDef => write!(f, "Invalid definition of \"main\".\nMust have return type int and no parameters."),
             ErrorKind::MissingMain => write!(f, "Function \"main\" must be defined."),
+            ErrorKind::InvalidField => write!(f, "Missing field name"),
+            ErrorKind::InvalidFieldAccess => write!(f, "Accessing field of non-struct"),
+            ErrorKind::InvalidDeref => write!(f, "Tried to deref a non-pointer type"),
         }
     }
 }
@@ -399,16 +406,16 @@ impl<'a> TypeCheckable<'a> for VarRef<'a> {
                 match lhs.check(stack, func_type)?.as_ref() {
                     Type::Pointer(t) => {
                         match t.as_ref() {
-                            Type::Struct { name, fields } => {
+                            Type::Struct { name: _, fields } => {
                                 match fields.iter().find(|(name, _)| name == ident) {
                                     Some((_, tp)) => Ok(tp.clone()),
-                                    None => unimplemented!("Struct missing field err"),
+                                    None => Err(Error::NoContext(ErrorKind::InvalidField)),
                                 }
                             }
-                            _ => unimplemented!("Field access on non-struct err"),
+                            _ => Err(Error::NoContext(ErrorKind::InvalidFieldAccess)),
                         }
                     }
-                    _ => unimplemented!("Deref non-pointer err"),
+                    _ => Err(Error::NoContext(ErrorKind::InvalidDeref)),
                 }
             }
         }
